@@ -79,3 +79,4 @@ Notes:
 ## More
 
 - Public history of any link: https://permapath.link/history.html?l=LINK_ID
+- Source code (MIT): https://github.com/aylwardc/PermaPath

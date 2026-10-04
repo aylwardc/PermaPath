@@ -117,5 +117,4 @@ because Arweave is permanent, but any fix you make won't reach them.
 
 ## License
 
-[AGPL-3.0](LICENSE). You can use, modify and self-host PermaPath; if you run a modified
-version for others, share your changes under the same license.
+[MIT](LICENSE).

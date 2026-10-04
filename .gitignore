@@ -1,0 +1,7 @@
+.data/
+node_modules/
+frontend/dist/
+frontend-dist/
+.env
+*.log
+dist/

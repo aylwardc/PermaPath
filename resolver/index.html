@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PermaPath</title>
+<!--
+  PermaPath resolver. Uploaded to Arweave once; every QR code points here as
+  https://arweave.net/<this TX>?l=<LINK_ID>. It must never need to change, so
+  it has no dependencies.
+
+  Protocol (App-Name: PermaPath, App-Version: 1):
+    link   — data item tagged Type=link, Destination, Seq. Its ID is LINK_ID and
+             its signer owns the link.
+    update — data item tagged Type=update, Link=<LINK_ID>, Destination, Seq,
+             optional Disabled=true. Only counts if signed by the link's owner.
+  Every record must be signed by the link's owner (checked here, so no GraphQL
+  endpoint has to be trusted); the valid record with the highest numeric Seq
+  wins. Records with any other App-Version are ignored, so future formats
+  can't be misread. Browsers without Ed25519 support fall back to trusting
+  endpoints in priority order.
+
+  Upgrades: if the winning record has Resolver=<TX>, this page forwards the
+  scan to that newer resolver (same gateway, same ?l=), at most 3 hops.
+-->
+<style>
+  :root { --bg: #ffffff; --fg: #1a1a1a; --muted: #6b6b6b; --accent: #0b6bcb; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111111; --fg: #ededed; --muted: #9a9a9a; --accent: #6cb4ff; } }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); }
+  body { font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; }
+  main { max-width: 26rem; padding: 1.5rem; text-align: center; }
+  h1 { font-size: 1.15rem; margin: 0 0 .5rem; }
+  p { margin: .5rem 0; color: var(--muted); }
+  a { color: var(--accent); word-break: break-all; }
+  button { font: inherit; margin-top: 1rem; padding: .5rem 1.25rem; border-radius: .5rem; border: 1px solid var(--muted); background: transparent; color: var(--fg); cursor: pointer; }
+  [hidden] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Opening link…</h1>
+  <p id="detail"></p>
+  <p id="fallback" hidden><a id="fallback-link" rel="noreferrer"></a></p>
+  <button id="retry" type="button" hidden onclick="location.reload()">Try again</button>
+  <noscript><p>This link needs JavaScript to open.</p></noscript>
+</main>
+<script>
+(function () {
+  var APP = 'PermaPath';
+  var VERSION = '1';
+  var ENDPOINTS = [
+    'https://arweave.net/graphql',
+    'https://arweave-search.goldsky.com/graphql',
+    'https://permagate.io/graphql',
+    'https://frostor.xyz/graphql'
+  ];
+  var MAX_HOPS = 3;
+  var TIMEOUT_MS = 10000;
+  var GRACE_MS = 1500; // after the first valid answer, wait this long for a fresher one
+
+  // The gateway that served this page goes first (it already controls what this
+  // page does). Strips arweave.net-style sandbox subdomains.
+  var host = location.host.replace(/^[a-z2-7]{52}\./, '');
+  var gateway = location.protocol + '//' + host;
+  var local = /^(localhost|127\.)/.test(host);
+  if (/^https?:$/.test(location.protocol) && !local && ENDPOINTS.indexOf(gateway + '/graphql') < 0) {
+    ENDPOINTS.unshift(gateway + '/graphql');
+  }
+  var DATA_GATEWAY = local || !/^https?:$/.test(location.protocol) ? 'https://arweave.net' : gateway;
+
+  function show(title, detail, retry) {
+    document.getElementById('title').textContent = title;
+    document.getElementById('detail').textContent = detail || '';
+    document.getElementById('retry').hidden = !retry;
+  }
+
+  function timeoutSignal() {
+    var ctrl = new AbortController();
+    setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS);
+    return ctrl.signal;
+  }
+
+  function gql(endpoint, query, variables) {
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: query, variables: variables }),
+      signal: timeoutSignal()
+    }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then(function (body) {
+      if (body.errors) throw new Error('GraphQL error');
+      return body.data.transactions;
+    });
+  }
+
+  function tagsOf(node) {
+    var t = {};
+    node.tags.forEach(function (x) { t[x.name] = x.value; });
+    return t;
+  }
+
+  // ---------- signature checks ----------
+  // Each record is an ANS-104 data item (signature type 4, Ed25519) signed by its
+  // owner. Checking it means no endpoint has to be trusted: a record either was
+  // signed by the link's owner or is thrown away.
+
+  var subtle = window.crypto && window.crypto.subtle;
+  var enc = new TextEncoder();
+  var EMPTY = new Uint8Array(0);
+
+  function fromB64url(s) {
+    var bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function toB64url(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function concat(parts) {
+    var n = 0, at = 0;
+    parts.forEach(function (p) { n += p.length; });
+    var out = new Uint8Array(n);
+    parts.forEach(function (p) { out.set(p, at); at += p.length; });
+    return out;
+  }
+  function hash(alg, bytes) {
+    return subtle.digest(alg, bytes).then(function (b) { return new Uint8Array(b); });
+  }
+  function deepHash(chunk) {
+    if (Array.isArray(chunk)) {
+      return chunk.reduce(function (acc, item) {
+        return Promise.all([acc, deepHash(item)]).then(function (r) { return hash('SHA-384', concat(r)); });
+      }, hash('SHA-384', enc.encode('list' + chunk.length)));
+    }
+    return Promise.all([hash('SHA-384', enc.encode('blob' + chunk.length)), hash('SHA-384', chunk)])
+      .then(function (r) { return hash('SHA-384', concat(r)); });
+  }
+  function avroLong(n) {
+    var z = n * 2, out = [];
+    do {
+      var b = z % 128;
+      z = Math.floor(z / 128);
+      out.push(z > 0 ? b | 0x80 : b);
+    } while (z > 0);
+    return Uint8Array.from(out);
+  }
+  function serializeTags(tags) {
+    if (!tags.length) return EMPTY;
+    var parts = [avroLong(tags.length)];
+    tags.forEach(function (t) {
+      [t.name, t.value].forEach(function (s) { var b = enc.encode(s); parts.push(avroLong(b.length), b); });
+    });
+    parts.push(avroLong(0));
+    return concat(parts);
+  }
+  function toHex(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
+    return s;
+  }
+  function bodyOf(node) {
+    if (Number(node.data.size) === 0) return Promise.resolve(EMPTY);
+    // Older records carry a body; fetch it so the signature can be checked.
+    return fetch(DATA_GATEWAY + '/raw/' + node.id, { signal: timeoutSignal() }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.arrayBuffer();
+    }).then(function (b) { return new Uint8Array(b); });
+  }
+
+  var verified = {}; // id -> Promise<boolean>, shared across endpoints
+  function verify(node) {
+    if (!verified[node.id]) {
+      verified[node.id] = Promise.resolve().then(function () {
+        var sig = fromB64url(node.signature || '');
+        var owner = fromB64url(node.owner.key || '');
+        if (sig.length !== 64 || owner.length !== 32) return false;
+        return Promise.all([hash('SHA-256', sig), bodyOf(node)]).then(function (r) {
+          if (toB64url(r[0]) !== node.id) return false;
+          return deepHash([enc.encode('dataitem'), enc.encode('1'), enc.encode('4'), owner, EMPTY, EMPTY, serializeTags(node.tags), r[1]])
+            .then(function (h) {
+              return subtle.importKey('raw', owner, { name: 'Ed25519' }, false, ['verify']).then(function (key) {
+                return subtle.verify('Ed25519', key, sig, enc.encode(toHex(h)));
+              });
+            });
+        });
+      }).catch(function () { return false; });
+    }
+    return verified[node.id];
+  }
+
+  // Ed25519 in WebCrypto: Safari 17+, Chrome 137+, Firefox 129+. Older browsers
+  // fall back to trusting endpoints in priority order.
+  var RFC8032_KEY = Uint8Array.from(atob('11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo='), function (c) { return c.charCodeAt(0); });
+  var canVerify = subtle
+    ? subtle.importKey('raw', RFC8032_KEY, { name: 'Ed25519' }, false, ['verify']).then(function () { return true; }, function () { return false; })
+    : Promise.resolve(false);
+
+  // ---------- lookup ----------
+
+  var NODE = 'id signature owner { address key } data { size } tags { name value }';
+
+  // Returns { genesis, updates } as this endpoint reports them, or null if it
+  // doesn't know the link.
+  function lookup(endpoint, linkId) {
+    return gql(endpoint, 'query($ids:[ID!]){ transactions(ids:$ids){ edges{ node{ ' + NODE + ' } } } }', { ids: [linkId] })
+      .then(function (tx) {
+        var genesis = tx.edges[0] && tx.edges[0].node;
+        if (!genesis) return null;
+        var gTags = tagsOf(genesis);
+        if (genesis.id !== linkId || gTags['App-Name'] !== APP || gTags['App-Version'] !== VERSION || gTags.Type !== 'link') return null;
+        var updates = [];
+        var query = 'query($after:String,$owner:[String!],$link:[String!]!,$app:[String!]!){ transactions(first:100, after:$after, owners:$owner, ' +
+          'tags:[{name:"App-Name",values:$app},{name:"Type",values:["update"]},{name:"Link",values:$link}]){ ' +
+          'pageInfo{ hasNextPage } edges{ cursor node{ ' + NODE + ' } } } }';
+        function page(after, n) {
+          return gql(endpoint, query, { after: after, owner: [genesis.owner.address], link: [linkId], app: [APP] }).then(function (tx) {
+            tx.edges.forEach(function (e) {
+              var t = tagsOf(e.node);
+              if (e.node.owner.key === genesis.owner.key && t.Link === linkId && t.Type === 'update') updates.push(e.node);
+            });
+            if (tx.pageInfo.hasNextPage && tx.edges.length && n < 20) return page(tx.edges[tx.edges.length - 1].cursor, n + 1);
+          });
+        }
+        return page(null, 0).then(function () { return { genesis: genesis, updates: updates }; });
+      });
+  }
+
+  function newest(nodes) {
+    var best = null;
+    nodes.forEach(function (node) {
+      var r = tagsOf(node);
+      if (r['App-Version'] !== VERSION || !/^\d{1,16}$/.test(r.Seq || '')) return;
+      if (!best || Number(r.Seq) > Number(best.Seq)) best = r;
+    });
+    return best;
+  }
+
+  // With signature checks: only records signed by the link's owner count, so
+  // the newest one from any endpoint can be trusted.
+  function checkedNewest(found) {
+    return verify(found.genesis).then(function (ok) {
+      if (!ok) return null;
+      return Promise.all(found.updates.map(verify)).then(function (oks) {
+        return newest([found.genesis].concat(found.updates.filter(function (_, i) { return oks[i]; })));
+      });
+    });
+  }
+
+  function safeUrl(text) {
+    try {
+      var u = new URL(text);
+      return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null;
+    } catch (e) { return null; }
+  }
+
+  function finish(record) {
+    if (!record) {
+      show('Link not found', 'If this link was just created, it can take a few minutes to appear. Try again shortly.', true);
+      return;
+    }
+    if (record.Resolver) {
+      if (!/^[A-Za-z0-9_-]{43}$/.test(record.Resolver) || hops >= MAX_HOPS) {
+        show('This link can’t be opened', 'It points to an upgraded resolver that couldn’t be reached.');
+        return;
+      }
+      show('Opening link…');
+      location.replace(gateway + '/' + record.Resolver + '?l=' + encodeURIComponent(linkId) + '&h=' + (hops + 1));
+      return;
+    }
+    if (record.Disabled === 'true') {
+      show('This link is turned off', 'Its owner has paused it for now.');
+      return;
+    }
+    var dest = safeUrl(record.Destination);
+    if (!dest) {
+      show('This link has an invalid destination');
+      return;
+    }
+    show('Opening link…');
+    var a = document.getElementById('fallback-link');
+    a.href = dest;
+    a.textContent = dest;
+    document.getElementById('fallback').hidden = false;
+    location.replace(dest);
+  }
+
+  var params = new URLSearchParams(location.search);
+  var linkId = params.get('l') || '';
+  var hops = Math.max(0, Math.min(Number(params.get('h')) || 0, MAX_HOPS));
+  if (!/^[A-Za-z0-9_-]{43}$/.test(linkId)) {
+    show('No link here', 'This address is missing a valid link ID.');
+    return;
+  }
+
+  // Ask every endpoint at once. results[i]: undefined = waiting, null = failed,
+  // { found, record } = answered.
+  var results = ENDPOINTS.map(function () { return undefined; });
+  var done = false, graceTimer = null;
+
+  function end(record, answered) {
+    if (done) return;
+    done = true;
+    clearTimeout(graceTimer);
+    if (answered) finish(record);
+    else show('Couldn’t look up this link', 'The Arweave network didn’t respond. Please try again.', true);
+  }
+
+  canVerify.then(function (checking) {
+    // Without signature checks: take the highest-priority answer, and never
+    // trust one while an endpoint above it is still pending.
+    function settleRanked() {
+      var answered = false;
+      for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        if (r === undefined) return;
+        if (r && r.record) return end(r.record, true);
+        if (r) answered = true;
+      }
+      end(null, answered);
+    }
+    // With signature checks: every record is genuine, so take the newest. Once
+    // one valid answer is in, give the others GRACE_MS to offer a newer one.
+    function settleChecked(final) {
+      var best = null, answered = false, waiting = false;
+      results.forEach(function (r) {
+        if (r === undefined) { waiting = true; return; }
+        if (!r) return;
+        answered = true;
+        if (r.record && (!best || Number(r.record.Seq) > Number(best.Seq))) best = r.record;
+      });
+      if (!waiting || final) return end(best, answered);
+      if (best && !graceTimer) graceTimer = setTimeout(function () { settleChecked(true); }, GRACE_MS);
+    }
+    ENDPOINTS.forEach(function (endpoint, i) {
+      lookup(endpoint, linkId).then(function (found) {
+        if (!found) return { record: null };
+        return (checking ? checkedNewest(found) : Promise.resolve(newest([found.genesis].concat(found.updates))))
+          .then(function (record) { return { record: record }; });
+      }).then(function (r) { results[i] = r; }, function () { results[i] = null; }).then(function () {
+        if (!done) (checking ? settleChecked(false) : settleRanked());
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

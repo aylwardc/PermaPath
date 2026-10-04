@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link history · PermaPath</title>
+<meta name="description" content="Where a PermaPath QR code points, and every change ever made to it, verified from Arweave.">
+<meta name="robots" content="noindex">
+<link rel="canonical" href="https://permapath.link/history.html">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PermaPath">
+<meta property="og:title" content="Link history · PermaPath">
+<meta property="og:description" content="Where a PermaPath link points, and every change ever made to it, verified from Arweave.">
+<meta property="og:url" content="https://permapath.link/history.html">
+<meta property="og:image" content="https://permapath.link/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="PermaPath: links that never die. QR codes you never have to reprint.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b6bcb">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6bcb'/%3E%3Cpath d='M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM10 10h2v2h-2z' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+<main class="landing history">
+  <h1>Link history</h1>
+
+  <form id="lookup" class="card">
+    <label>Link or link ID
+      <input id="lookup-input" required spellcheck="false" autocomplete="off" placeholder="https://arweave.net/…?l=…">
+    </label>
+    <p class="error" id="lookup-error" hidden></p>
+    <button class="primary" type="submit">Show history</button>
+  </form>
+
+  <p class="muted" id="status" aria-live="polite"></p>
+
+  <section id="result" hidden>
+    <div class="card link-item">
+      <div class="qr-thumb" id="qr"></div>
+      <div>
+        <h3><span id="name"></span> <span id="chip"></span></h3>
+        <p class="dest" id="now"></p>
+        <p class="url muted" id="qr-url"></p>
+      </div>
+    </div>
+    <dl class="facts">
+      <dt>Created</dt><dd id="created"></dd>
+      <dt>Owner key</dt><dd class="mono" id="owner"></dd>
+    </dl>
+    <h2>Changes <span class="muted" id="count"></span></h2>
+    <ol class="timeline" id="timeline"></ol>
+  </section>
+
+  <p class="muted small footer-note"><a href="./">Make your own QR codes you never have to reprint</a></p>
+</main>
+<noscript><p class="landing">This page needs JavaScript.</p></noscript>
+<script type="module" src="history.js"></script>
+</body>
+</html>

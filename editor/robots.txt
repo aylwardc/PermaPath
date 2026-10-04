@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /history.html
+
+Sitemap: https://permapath.link/sitemap.xml

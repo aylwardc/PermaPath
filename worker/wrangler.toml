@@ -1,0 +1,11 @@
+# permapath.link: serves the current editor from Arweave. Replaces the legacy
+# gateway (legacy/worker), so the name and routes match it.
+# Deploy: cd worker && npx wrangler deploy   (needs CLOUDFLARE_API_TOKEN)
+name = "permapath-gateway"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+routes = [
+  { pattern = "permapath.link/*", zone_name = "permapath.link" },
+  { pattern = "permapath.link", zone_name = "permapath.link" }
+]

@@ -1,0 +1,81 @@
+# PermaPath
+
+> QR codes you never have to reprint. Each printed code points to a permanent page on Arweave; the owner can change where it sends people at any time, and the printed code stays the same. Web app: https://permapath.link
+
+## How an AI assistant can help
+
+You can't create links directly: every link is signed with the user's private key, and that key should stay in their browser. Instead, prepare a CSV that the user imports into PermaPath. The user then signs and creates the links in one step.
+
+### CSV format
+
+- A header row, then one row per link.
+- Columns (any order): `name`, `destination`, and optionally `link_id`.
+  - `name`: a short label, up to 100 characters. Public. Optional.
+  - `destination`: a full web address starting with `https://` (or `http://`). Leave it empty to create a "not set up" link whose destination will be set later, for example for codes printed in advance.
+  - `link_id`: only for changing links that already exist. Use the IDs from a CSV the user exported from PermaPath. Empty cells in these rows mean "leave unchanged".
+- Quote any value that contains a comma.
+- Up to 100 links per import.
+
+Example:
+
+```csv
+name,destination
+Bike tag,https://example.com/lost-bike
+Garden sign,https://example.com/garden-tour
+Spare sticker,
+```
+
+### Tell the user
+
+1. Open https://permapath.link and sign in with their key (or create one; there's no email or sign-up).
+2. Under "Your links", tap **Import CSV**, paste the CSV, check the preview, and tap **Import**.
+3. To print, download each link's QR code, or use "Download CSV with QR links": its `qr_url` column is what each QR code should encode. Label tools such as Avery's can make QR codes from that column.
+
+### Important
+
+- Destinations, names and every past destination are **public and permanent** unless a link is password protected. Password protection can be set in the web app (Edit → Password protect) or with the command-line tool below, but not by CSV, so for private destinations in an import, tell the user to turn it on afterwards. Don't put URLs that grant access just by being known (for example "anyone with the link" shares, meeting links with passcodes, or URLs with tokens) in unprotected links.
+- PermaPath doesn't track scans.
+- Changes usually go live within seconds, occasionally up to 20 minutes.
+- Simple hosted pages (title, text, photo) can be written in the web app or with the command-line tool below, but not by CSV.
+
+## If you can run commands
+
+Agents that can run shell commands (Claude Code, Codex, Cursor and similar) can create and change links directly with the PermaPath command-line tool. **Only do this with a key the user gives you for this purpose.**
+
+- Suggest the user creates a **separate key** for work done by an AI, rather than sharing their main key. Anyone with a key controls every link made with it, permanently, and keys can't be revoked. They can create one at https://permapath.link ("Create a key") or with `keygen` below. If you generate it, give it to the user to save in their password manager, because it's the only way to manage those links later.
+- Keep the key in the `PERMAPATH_KEY` environment variable or a file passed with `--key-file`. Never print it, echo it back, or write it into files you share.
+
+Requires Node.js 22 or newer. The tool only needs network access to `permapath.link`, which passes requests on to the Arweave network. It contacts Arweave services directly only if permapath.link is unreachable.
+
+```bash
+curl -fsSL https://permapath.link/cli.mjs -o permapath.mjs
+export PERMAPATH_KEY='KEY_FROM_THE_USER'
+
+node permapath.mjs create https://example.com/page --name "Garden sign"   # prints link ID + QR URL
+node permapath.mjs create https://example.com/private --password "four random words here"   # password protected
+node permapath.mjs batch 20 --prefix "Sticker" > stickers.csv             # "not set up" links, CSV out
+node permapath.mjs set LINK_ID https://example.com/new-page               # change destination
+node permapath.mjs rename LINK_ID "New name"
+node permapath.mjs off LINK_ID                                            # or: on
+node permapath.mjs page "If you found this bag" --text-file note.txt --photo bag.jpg   # a simple page, no website needed
+node permapath.mjs edit-page LINK_ID --text "New text"                    # or --title, --photo, --no-photo
+node permapath.mjs lock LINK_ID --password "four random words here"       # protect (or change password)
+node permapath.mjs unlock LINK_ID                                         # remove protection
+node permapath.mjs list --json                                            # the key's links
+node permapath.mjs show LINK_ID                                           # history, no key needed
+node permapath.mjs qr LINK_ID > code.svg                                  # QR code (SVG, print-ready)
+node permapath.mjs help
+```
+
+Notes:
+- The QR URL (`https://arweave.net/…?l=LINK_ID`) is what each printed code encodes. Give the user those URLs or the SVGs.
+- Wait a few seconds between two changes to the same link.
+- Passwords: suggest a long one (four or more random words) and give it to the user; visitors need it to open the link. Link names stay visible even when locked, so keep them general.
+- `lock` and `unlock` on a link that's already live wait until arweave.net serves the new version (usually 1–5 minutes) so scans never fail; this check contacts arweave.net directly.
+- `show LINK_ID` with the owner's key also prints what a locked link unlocks to, and a page's title and text.
+- Pages: blank lines make paragraphs; web addresses become links. A photo must be JPEG, PNG or WebP and small enough to fit (whole page up to 95 KB, about 66 KB if password protected). Resize photos yourself first; the tool doesn't, and it says how much smaller to make them. A new page takes a few minutes to appear on Arweave; `edit-page` on a live link waits for it.
+- The user sees the same links at https://permapath.link when they sign in with that key.
+
+## More
+
+- Public history of any link: https://permapath.link/history.html?l=LINK_ID

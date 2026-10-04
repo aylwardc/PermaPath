@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PermaPath: links that never die</title>
+<meta name="description" content="Links that never die, and QR codes you never have to reprint. Share or print once, then change where it points whenever you need to.">
+<link rel="canonical" href="https://permapath.link/">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PermaPath">
+<meta property="og:title" content="PermaPath: links that never die">
+<meta property="og:description" content="Links that never die, and QR codes you never have to reprint. Change where they point any time. Free, no account, optional password protection.">
+<meta property="og:url" content="https://permapath.link/">
+<meta property="og:image" content="https://permapath.link/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="PermaPath: links that never die. QR codes you never have to reprint.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b6bcb">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "PermaPath", "url": "https://permapath.link/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any", "description": "Links that never die and QR codes you never have to reprint. Create a permanent link or QR code, then change where it points whenever you need to. Optional password protection. Free, no account.", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}</script>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6bcb'/%3E%3Cpath d='M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM10 10h2v2h-2z' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<section id="signin" class="landing">
+  <h1>PermaPath</h1>
+  <p class="lede">Links that never die.</p>
+  <p class="sublede">QR codes you never have to reprint.</p>
+  <p class="intro">Share a link or print its QR code once, then point it somewhere new whenever you need to. The link and the code never change. Lock it with a password when it’s private.</p>
+
+  <noscript><p class="card">Signing in and creating links needs JavaScript.</p></noscript>
+  <!-- Hidden until app.js is ready, so the buttons are never dead; the rest of
+       this page is readable without scripts (search engines, link previews). -->
+  <form id="login-form" class="card" hidden>
+    <!-- Not used by PermaPath. Kept (visually hidden) so password managers
+         see a username + password pair to save and fill. -->
+    <label class="pm-only" aria-hidden="true">Account name
+      <input id="login-user" name="username" autocomplete="username" value="PermaPath" tabindex="-1">
+    </label>
+    <label class="form-title">Sign in with your key
+      <input id="login-key" name="password" type="password" autocomplete="current-password" required spellcheck="false">
+    </label>
+    <p class="error" id="login-error" hidden></p>
+    <button class="primary" type="submit">Sign in</button>
+  </form>
+
+  <p class="center" id="new-key-row" hidden><button id="new-key" class="link" type="button">Create a key</button>
+    <span class="muted nowrap">· Free, no email needed</span></p>
+
+  <div class="info">
+    <h2>Stop reprinting</h2>
+    <p>Printed things outlive the links on them. Menus change, documents get new versions, websites move.
+      With PermaPath you update where a code goes instead of replacing what’s printed, from your phone, in seconds.</p>
+    <p class="more-link"><a href="compare.html">How PermaPath compares to subscription QR code services →</a></p>
+  </div>
+
+  <div class="info">
+    <h2>Made for things that are hard to reprint</h2>
+    <ul class="uses">
+      <li><strong>Permanent signs</strong>Plaques, memorials, trail markers, building and park signage.</li>
+      <li><strong>Hard-to-reach places</strong>Labels on equipment, installed displays, anything mounted high up or far away.</li>
+      <li><strong>Printed in bulk</strong>Packaging, manuals, product labels, books and flyers.</li>
+      <li><strong>Content that changes</strong>Menus, event schedules, real estate signs, museum labels.</li>
+      <li><strong>Private details</strong>Family info, members-only notes or private event details, locked with a password, on a code anyone can see.</li>
+      <li><strong>Luggage tags</strong>Bag tags that tell a finder how to reach you. Change the details any time without a new tag.</li>
+    </ul>
+    <p class="more-link"><a href="uses.html">More ideas for personal use, businesses, organizations and makers →</a></p>
+  </div>
+
+  <div class="info">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><strong>Create a key</strong> and save it in your password manager. It’s your account: no email or sign-up.</li>
+      <li><strong>Create a link</strong> to any web address, or write a simple page with text and a photo, no website needed. Add a password if it’s private. Download its QR code to print.</li>
+      <li><strong>Change the destination</strong> whenever you need to. Scans follow within seconds.</li>
+    </ol>
+    <div class="tip">
+      <strong>Tip: let an AI assistant do it.</strong> Tell ChatGPT, Claude or another assistant:
+      <em>“Read permapath.link/llms.txt and make PermaPath links for…”</em> It can draft a list for you to import,
+      or, if it can run commands and you give it a key, make the links itself. Use a separate key for that.
+      <a href="llms.txt">Instructions for AI assistants</a>
+    </div>
+  </div>
+
+  <div class="info">
+    <h2>Not a good fit for</h2>
+    <ul class="notes">
+      <li><strong>Highly sensitive secrets.</strong> Password protection uses strong encryption, but old versions are never deleted and a short password could eventually be guessed. Use a long one for anything important.</li>
+      <li><strong>Marketing analytics.</strong> PermaPath doesn’t count or track scans. Scanning a code tells no one anything.</li>
+      <li><strong>Changes that must be instant.</strong> Most go live within seconds, but some take up to 20 minutes.</li>
+      <li><strong>Big files or full websites.</strong> Pages you write here are simple: text and one photo.</li>
+    </ul>
+  </div>
+
+  <div class="info">
+    <h2>Built to outlast this website</h2>
+    <p>Each code points to a permanent page on Arweave, a network designed to store data indefinitely.
+      Your printed codes keep working even if this site goes away.</p>
+  </div>
+
+  <div class="info">
+    <h2>Good to know</h2>
+    <ul class="notes">
+      <li><strong>Your key is the only way to make changes.</strong> If you lose it, your codes keep working but can’t be pointed anywhere new. Nobody can recover it for you.</li>
+      <li><strong>Lock what’s private.</strong> With Password protect on, people need the password to see where a link goes or what a page says. Without it, a link works like a printed sign: anyone can see where it points. Link names always stay visible.</li>
+      <li><strong>Changes usually go live within seconds,</strong> occasionally up to 20 minutes.</li>
+    </ul>
+  </div>
+  <nav class="site-footer" aria-label="More">
+    <a href="uses.html">Ideas</a>
+    <a href="compare.html">Compare</a>
+    <a href="llms.txt">For AI assistants</a>
+    <a href="history.html">Look up a link’s history</a>
+  </nav>
+</section>
+
+<section id="newkey" class="narrow" hidden>
+  <h1>Your new key</h1>
+  <form id="newkey-form" class="card">
+    <p>This key is the only way to change your links. <strong>Save it in your password manager now.</strong></p>
+    <p class="warn">If you lose it, your links keep working but can never be changed again. Nobody can recover it for you.</p>
+    <!-- Not used by PermaPath. Kept (visually hidden) so password managers
+         see a username + password pair to save and fill. -->
+    <label class="pm-only" aria-hidden="true">Account name
+      <input id="newkey-user" name="username" autocomplete="username" value="PermaPath" tabindex="-1">
+    </label>
+    <label>Key
+      <span class="keyrow">
+        <input id="newkey-key" name="password" type="password" autocomplete="new-password" spellcheck="false">
+        <button type="button" id="newkey-show">Show</button>
+        <button type="button" id="newkey-copy">Copy</button>
+      </span>
+    </label>
+    <label class="check"><input type="checkbox" required> I’ve saved this key somewhere safe</label>
+    <button class="primary" type="submit">Continue</button>
+    <button class="link" type="button" id="newkey-cancel">Back</button>
+  </form>
+</section>
+
+<section id="app" hidden>
+  <header>
+    <strong>PermaPath</strong>
+    <span class="muted" id="account"></span>
+    <button class="link" id="signout" type="button">Sign out</button>
+  </header>
+
+  <main class="wide">
+    <form id="create-form" class="card">
+      <h2>New link</h2>
+      <div id="create-destination" class="destination">
+        <fieldset class="kind">
+          <legend>Send people to</legend>
+          <div class="seg">
+            <label><input type="radio" name="create-kind" value="url" checked><span>A web address</span></label>
+            <label><input type="radio" name="create-kind" value="page"><span>A page you write</span></label>
+          </div>
+        </fieldset>
+        <div data-kind="url">
+          <label>Web address
+            <input id="create-dest" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://example.com/menu">
+          </label>
+        </div>
+        <div data-kind="page" hidden>
+          <label>Page title
+            <input id="create-page-title" maxlength="200" placeholder="If you found this bike">
+          </label>
+          <label>Text <span class="muted">(optional; web addresses become links)</span>
+            <textarea id="create-page-text" rows="6" maxlength="20000" placeholder="Thanks for scanning! This bike belongs to Sam. Please call or text 555-0100 and I’ll come pick it up."></textarea>
+          </label>
+          <label>Photo <span class="muted">(optional)</span>
+            <input id="create-page-photo" type="file" accept="image/*">
+          </label>
+          <div class="photo-preview" id="create-page-preview" hidden>
+            <img alt="">
+            <button type="button" class="link" id="create-page-remove">Remove photo</button>
+          </div>
+          <p class="muted small" id="create-page-size"></p>
+          <p class="muted small">Pages are stored permanently, and each edit saves a new version. Turn on Password protect to keep one private.</p>
+        </div>
+        <div class="lock">
+          <label class="check"><input type="checkbox" id="create-lock"> Password protect</label>
+          <div id="create-lock-fields" hidden>
+            <span class="keyrow">
+              <input id="create-password" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Password for this link" aria-label="Password for this link">
+              <button type="button" id="create-suggest">Suggest</button>
+            </span>
+            <p class="muted small" id="create-password-hint">People will need this password to open the link. Longer is safer, like four random words. The link’s name stays visible, so keep it general.</p>
+          </div>
+        </div>
+      </div>
+      <label>Name <span class="muted">(optional)</span>
+        <input id="create-name" maxlength="100" placeholder="Restaurant menu">
+      </label>
+      <p class="error" id="create-error" hidden></p>
+      <button class="primary" type="submit">Create link</button>
+    </form>
+
+    <details class="card batch">
+      <summary>Create several links at once</summary>
+      <form id="batch-form">
+        <p class="muted">For codes you want to print before you know where they’ll go. Links are created without a destination;
+          set each one later with <strong>Set destination</strong>. Until then, scanning one shows “This link is turned off”.</p>
+        <div class="batch-fields">
+          <label>How many
+            <input id="batch-count" type="number" inputmode="numeric" min="1" max="100" value="10" required>
+          </label>
+          <label>Name prefix <span class="muted">(optional, public)</span>
+            <input id="batch-prefix" maxlength="80" placeholder="Sticker">
+          </label>
+        </div>
+        <p class="muted small">Names are numbered in order, like Sticker 1, Sticker 2.</p>
+        <p class="error" id="batch-error" hidden></p>
+        <p class="muted" id="batch-progress" aria-live="polite"></p>
+        <button type="submit">Create links</button>
+        <div id="batch-result" class="batch-result" hidden>
+          <p id="batch-summary"></p>
+          <button type="button" id="batch-download">Download CSV of these links</button>
+          <p class="muted small">The CSV’s <em>qr_url</em> column is what each QR code should contain. Many label tools, such as Avery’s, can make QR codes from a spreadsheet column.</p>
+        </div>
+      </form>
+    </details>
+
+    <p class="tip small" id="ai-tip"><strong>Tip:</strong> an AI assistant can make links for you.
+      <button type="button" class="link" id="ai-tip-copy">Copy a prompt</button> to paste into ChatGPT, Claude or similar.</p>
+
+    <div class="list-head">
+      <h2>Your links</h2>
+      <span class="row tight">
+        <button id="import-open" type="button">Import CSV</button>
+        <button id="export-csv" type="button">Export CSV</button>
+        <button id="refresh" type="button">Refresh</button>
+      </span>
+    </div>
+    <p class="muted" id="list-status"></p>
+    <ul id="links"></ul>
+  </main>
+</section>
+
+<dialog id="qr-dialog">
+  <form method="dialog" class="dialog-body">
+    <h2 id="qr-title"></h2>
+    <div id="qr-big" class="qr-big"></div>
+    <p class="url"><a id="qr-url" target="_blank" rel="noreferrer"></a></p>
+    <p class="small"><a id="qr-history" target="_blank" rel="noopener">Public history of this link</a></p>
+    <div class="row">
+      <button type="button" id="qr-png">Download PNG</button>
+      <button type="button" id="qr-svg">Download SVG</button>
+      <button type="button" id="qr-copy">Copy link</button>
+    </div>
+    <button class="primary" value="close">Done</button>
+  </form>
+</dialog>
+
+<dialog id="import-dialog">
+  <form id="import-form" class="dialog-body">
+    <h2>Import links</h2>
+    <p class="muted small">Paste CSV with a header row: <code>name,destination</code>. Rows create new links (leave the destination
+      empty for “not set up”). Add a <code>link_id</code> column to update existing links instead; an exported CSV works. Up to 100 links.</p>
+    <textarea id="import-text" rows="7" spellcheck="false" placeholder="name,destination&#10;Bike tag,https://example.com/bike&#10;Garden sign,https://example.com/garden"></textarea>
+    <label class="small">Or choose a file
+      <input type="file" id="import-file" accept=".csv,text/csv,text/plain">
+    </label>
+    <div id="import-preview" class="import-preview" aria-live="polite"></div>
+    <p class="error" id="import-error" hidden></p>
+    <p class="muted" id="import-progress" aria-live="polite"></p>
+    <div class="row">
+      <button type="button" id="import-cancel">Close</button>
+      <button class="primary" type="submit" id="import-submit" disabled>Import</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="edit-dialog">
+  <form id="edit-form" class="dialog-body">
+    <h2 id="edit-title">Edit link</h2>
+    <div id="edit-destination" class="destination">
+      <fieldset class="kind">
+        <legend>Send people to</legend>
+        <div class="seg">
+          <label><input type="radio" name="edit-kind" value="url" checked><span>A web address</span></label>
+          <label><input type="radio" name="edit-kind" value="page"><span>A page you write</span></label>
+        </div>
+      </fieldset>
+      <div data-kind="url">
+        <label>Web address
+          <input id="edit-dest" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://example.com/menu">
+        </label>
+      </div>
+      <div data-kind="page" hidden>
+        <label>Page title
+          <input id="edit-page-title" maxlength="200" placeholder="If you found this bike">
+        </label>
+        <label>Text <span class="muted">(optional; web addresses become links)</span>
+          <textarea id="edit-page-text" rows="6" maxlength="20000" placeholder="Thanks for scanning! This bike belongs to Sam. Please call or text 555-0100 and I’ll come pick it up."></textarea>
+        </label>
+        <label>Photo <span class="muted">(optional)</span>
+          <input id="edit-page-photo" type="file" accept="image/*">
+        </label>
+        <div class="photo-preview" id="edit-page-preview" hidden>
+          <img alt="">
+          <button type="button" class="link" id="edit-page-remove">Remove photo</button>
+        </div>
+        <p class="muted small" id="edit-page-size"></p>
+        <p class="muted small">Pages are stored permanently, and each edit saves a new version. Turn on Password protect to keep one private.</p>
+      </div>
+      <div class="lock">
+        <label class="check"><input type="checkbox" id="edit-lock"> Password protect</label>
+        <div id="edit-lock-fields" hidden>
+          <span class="keyrow">
+            <input id="edit-password" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Password for this link" aria-label="Password for this link">
+            <button type="button" id="edit-suggest">Suggest</button>
+          </span>
+          <p class="muted small" id="edit-password-hint">People will need this password to open the link. Longer is safer, like four random words. The link’s name stays visible, so keep it general.</p>
+        </div>
+      </div>
+    </div>
+    <label>Name <span class="muted">(optional)</span>
+      <input id="edit-name" maxlength="100">
+    </label>
+    <p class="muted" id="edit-note">Changes usually go live within a minute. The QR code stays the same.</p>
+    <p class="muted" id="edit-progress" aria-live="polite"></p>
+    <p class="error" id="edit-error" hidden></p>
+    <div class="row">
+      <button type="button" id="edit-cancel">Cancel</button>
+      <button class="primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<noscript><p class="narrow">PermaPath needs JavaScript.</p></noscript>
+<script type="module" src="app.js"></script>
+</body>
+</html>

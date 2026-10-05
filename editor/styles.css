@@ -182,7 +182,8 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .85em; }
 
 .chip.locked { color: var(--accent); }
 .link-item.clickable { cursor: pointer; }
-.link-item.clickable:hover { border-color: var(--muted); }
+/* Mouse only: on touch screens :hover sticks to the last card touched (even when scrolling). */
+@media (hover: hover) and (pointer: fine) { .link-item.clickable:hover { border-color: var(--muted); } }
 label.switch { display: flex; align-items: center; gap: .65rem; font-weight: 600; cursor: pointer; margin-bottom: .9rem; }
 input.switch-input { appearance: none; -webkit-appearance: none; flex: none; margin: 0; width: 2.75rem; height: 1.6rem; border-radius: 999px;
   background: var(--line); position: relative; cursor: pointer; transition: background .15s; }

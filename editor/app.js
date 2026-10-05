@@ -188,18 +188,60 @@ $('refresh').addEventListener('click', refresh);
 // arweave.net serves it (seconds to ~15 minutes). Tracked while this tab is open.
 const publishingPages = new Set();
 
+// Page and locked-link destinations arweave.net has been seen serving, kept
+// across reloads so "Live" only shows once scans actually work.
+const SERVED_KEY = 'permapath:served';
+const served = new Set((() => { try { return JSON.parse(localStorage.getItem(SERVED_KEY) || '[]'); } catch { return []; } })());
+function markServed(url) {
+  served.add(url);
+  try { localStorage.setItem(SERVED_KEY, JSON.stringify([...served].slice(-500))); } catch { /* fine */ }
+}
+
 function trackPublishing(url) {
+  if (publishingPages.has(url) || served.has(url)) return;
   publishingPages.add(url);
-  waitUntilServed(url, () => {}).catch(() => {}).finally(() => {
+  waitUntilServed(url, () => {}).then(() => markServed(url), () => {}).finally(() => {
     publishingPages.delete(url);
     render();
   });
 }
 
+// For uploads we didn't just make: check once quietly, and only show
+// "Publishing" if arweave.net isn't serving it yet.
+const checking = new Set();
+async function checkServed(url) {
+  if (served.has(url) || publishingPages.has(url) || checking.has(url)) return;
+  checking.add(url);
+  try {
+    const res = await fetch(`${url}?check=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+    if (res.ok) { markServed(url); return; }
+  } catch { /* not yet */ } finally {
+    checking.delete(url);
+  }
+  trackPublishing(url);
+  render();
+}
+
+// The owner's editor can open its own locked links, so show where they go.
+const revealed = new Map(); // locked page URL -> text, or null while loading
+async function reveal(url) {
+  if (revealed.has(url)) return;
+  revealed.set(url, null);
+  try {
+    const env = parseLockedHtml((await loadArweaveHtml(url)) || '');
+    const { payload } = await openLocked(env, key.lockKey);
+    revealed.set(url, payload.type === 'url' ? payload.url : `Page · ${parsePageHtml(payload.html)?.title || 'untitled'}`);
+  } catch {
+    revealed.delete(url); // try again on the next refresh
+    return;
+  }
+  render();
+}
+
 function statusChip(link) {
   const view = link.pending || link;
   if (publishingPages.has(view.destination)) {
-    return h('span', { class: 'chip pending', title: 'Arweave is still publishing this' }, view.kind === 'locked' ? 'Publishing' : 'Publishing page');
+    return h('span', { class: 'chip pending', title: 'Arweave is still publishing this; scans will work once it’s done' }, 'Publishing');
   }
   if (link.pending) {
     const slow = Date.now() - link.pending.postedAt > PENDING_SLOW_MS;
@@ -214,13 +256,16 @@ function statusChip(link) {
 function describe(state) {
   if (!state.destination) return 'No destination yet';
   if (state.disabled) return 'Turned off';
-  if (state.kind === 'locked') return 'Password protected';
+  if (state.kind === 'locked') return revealed.get(state.destination) || 'Password protected';
   return state.kind === 'page' ? `Page · ${state.destination}` : state.destination;
 }
 
 function render() {
   $('links').replaceChildren(...links.map((link) => {
     const view = link.pending || link;
+    if ((view.kind === 'page' || view.kind === 'locked') && view.destination) checkServed(view.destination);
+    if (view.kind === 'locked' && view.destination) reveal(view.destination);
+    const lockChip = view.kind === 'locked' ? h('span', { class: 'chip locked', title: 'Password protected' }, '🔒 Locked') : null;
     const thumb = h('button', { class: 'qr-thumb', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
     thumb.innerHTML = qrSvg(linkUrl(link.id), 2);
     const dest = [];
@@ -236,13 +281,14 @@ function render() {
     } else {
       dest.push(h('p', { class: 'dest' }, describe(view)));
     }
-    return h('li', { class: 'card link-item' },
+    // Tapping anywhere on the card (except its buttons) opens the QR code.
+    const openFromCard = (e) => { if (!e.target.closest('button, a, input')) openQr(view); };
+    return h('li', { class: 'card link-item clickable', onclick: openFromCard, title: 'Show QR code' },
       thumb,
       h('div', {},
-        h('h3', {}, view.name || 'Untitled link', statusChip(link)),
+        h('h3', {}, view.name || 'Untitled link', statusChip(link), lockChip),
         dest,
         h('div', { class: 'row' },
-          h('button', { type: 'button', onclick: () => openQr(view) }, 'QR code'),
           view.destination
             ? [
               h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'),

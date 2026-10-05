@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/qORX7oZ_pSFMYcJdlseuL_B2y1V-EDIuXYNZSoM2pFY/
+  directly: https://arweave.net/lAGCX7-rgsu_YrIYIKP9srfQk5Bh56rilOfIOHzO5Q0/
 - **Resolver:** https://arweave.net/G81f_IpOpMEqSfTfD6X5v_yVUQgZ65vRkDr4jBYLOvE
   (`RESOLVER_TX` in `editor/config.js`)
 

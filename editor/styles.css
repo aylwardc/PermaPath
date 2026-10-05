@@ -179,3 +179,15 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: .85em; }
 .tip strong { color: var(--fg); }
 .tip a { white-space: nowrap; }
 .info .tip em { color: var(--fg); font-style: normal; }
+
+.chip.locked { color: var(--accent); }
+.link-item.clickable { cursor: pointer; }
+.link-item.clickable:hover { border-color: var(--muted); }
+label.switch { display: flex; align-items: center; gap: .65rem; font-weight: 600; cursor: pointer; margin-bottom: .9rem; }
+input.switch-input { appearance: none; -webkit-appearance: none; flex: none; margin: 0; width: 2.75rem; height: 1.6rem; border-radius: 999px;
+  background: var(--line); position: relative; cursor: pointer; transition: background .15s; }
+input.switch-input::before { content: ""; position: absolute; top: 3px; left: 3px; width: calc(1.6rem - 6px); height: calc(1.6rem - 6px);
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .3); transition: transform .15s; }
+input.switch-input:checked { background: var(--accent); }
+input.switch-input:checked::before { transform: translateX(1.15rem); }
+input.switch-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

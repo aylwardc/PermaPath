@@ -24,3 +24,14 @@ Ideas discussed on 2026-10-03, not yet built.
 - **Automatic web snapshots:** an earlier server-side snapshot experiment struggled with paywalls, animation and bot detection. File destinations cover most of the need.
 - **Payments:** only worth it if large files ever matter.
 
+
+## Known issues
+
+- **History page on iOS opens scrolled past the title** (Chrome on iPhone). Three small fixes didn't help (16px fields, no scroll restoration or anchoring, container padding). Next step: reproduce in the Xcode iOS Simulator instead of guessing.
+- **frostor.xyz returns a broken signature (`"<not-found>"`) for older records.** Handled: the editor, CLI and resolver v2 (`baTff…`) only trust copies whose signatures verify, per copy. Codes made with the old resolver (`G81f…`) can still show "Link not found" in the rare case frostor's broken copy is checked first. Worth reporting to frostor's operator.
+
+## Watch list (promising, not ready to depend on)
+
+- **Shorter QR codes via byte offsets.** arweave.net can serve data by its position in the weave (e.g. `https://12345678kb.arweave.net/`), which could shrink codes from ~110 to ~50 characters. It's new (HyperBEAM `~name@1.0`, March 2026), offsets only exist once a bundle is confirmed, and fewer gateways support it. Revisit once proven.
+- **Arweave-as-database (arlmdb)** as a possible replacement for GraphQL search services: indexes stored on Arweave and read by byte offset. Unclear how it stays fresh enough for live updates. Revisit once other apps depend on it.
+- **Turbo's free tier.** Uploads already fall back to `up.arweave.net` automatically; scanning never depends on either. If both ever stopped being free, PermaPath could pay for users' tiny uploads (around 1 KB each).

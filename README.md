@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/m0y77_OrnZv3SICSVdVt_q0DIuHAsbXQu7kCtahFP6U/
+  directly: https://arweave.net/qORX7oZ_pSFMYcJdlseuL_B2y1V-EDIuXYNZSoM2pFY/
 - **Resolver:** https://arweave.net/G81f_IpOpMEqSfTfD6X5v_yVUQgZ65vRkDr4jBYLOvE
   (`RESOLVER_TX` in `editor/config.js`)
 
@@ -50,7 +50,9 @@ registry: just Arweave data items and gateway GraphQL.
   can set it; the editor carries it forward on later edits.
 - **Keys:** Ed25519 seeds, base58-encoded (~44 chars), kept in the user's password
   manager. Data items use ANS-104 signature type 4 (Turbo's "solana" format).
-  Uploads go to Turbo directly from the browser and are free under 100 KiB.
+  Uploads go to Turbo directly from the browser and are free under 100 KiB. If Turbo is
+  unreachable, failing, rate limiting or asks for payment, uploads fall back to
+  `up.arweave.net` (also free for small items; changes then take a few minutes to appear).
 - **Latency:** new links and edits usually go live within seconds, because
   frostor.xyz indexes Turbo uploads almost immediately. If frostor is down,
   expect ~5–20 min while the other endpoints catch up. See `spike/FINDINGS.md`.

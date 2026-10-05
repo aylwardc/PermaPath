@@ -173,10 +173,14 @@
     }).then(function (b) { return new Uint8Array(b); });
   }
 
-  var verified = {}; // id -> Promise<boolean>, shared across endpoints
+  // Cached per exact copy (id + signature + owner key), not per id: services can
+  // return a broken copy of a record (e.g. signature "<not-found>"), and that
+  // must not make the good copies from other services fail too.
+  var verified = {};
   function verify(node) {
-    if (!verified[node.id]) {
-      verified[node.id] = Promise.resolve().then(function () {
+    var cacheKey = node.id + '|' + node.signature + '|' + node.owner.key;
+    if (!verified[cacheKey]) {
+      verified[cacheKey] = Promise.resolve().then(function () {
         var sig = fromB64url(node.signature || '');
         var owner = fromB64url(node.owner.key || '');
         if (sig.length !== 64 || owner.length !== 32) return false;
@@ -191,7 +195,7 @@
         });
       }).catch(function () { return false; });
     }
-    return verified[node.id];
+    return verified[cacheKey];
   }
 
   // Ed25519 in WebCrypto: Safari 17+, Chrome 137+, Firefox 129+. Older browsers

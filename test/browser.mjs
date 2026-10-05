@@ -138,6 +138,24 @@ if (which === 'all' || which === 'resolver') {
     await page.goto(`${base}/?l=${fx.plain}`);
     await page.waitForURL('https://example.com/?pp=plain', { timeout: 30_000 });
   });
+  await check('resolver: a broken copy answering first does not poison good copies', async (page) => {
+    // frostor.xyz really returns signature "<not-found>" for older records. Make
+    // it answer first (fast, from arweave.net, then broken) and the others late.
+    await page.route(/frostor\.xyz\/graphql/, async (route) => {
+      try {
+        const res = await route.fetch({ url: 'https://arweave.net/graphql' });
+        const body = await res.json();
+        for (const e of body.data?.transactions?.edges || []) e.node.signature = '<not-found>';
+        await route.fulfill({ response: res, body: JSON.stringify(body) });
+      } catch { /* page already redirected and closed */ }
+    });
+    await page.route(/(arweave\.net|goldsky\.com|permagate\.io)\/graphql/, async (route) => {
+      await new Promise((r) => setTimeout(r, 4000));
+      await route.continue().catch(() => {});
+    });
+    await page.goto(`${base}/?l=${fx.plain}`);
+    await page.waitForURL('https://example.com/?pp=plain', { timeout: 40_000 });
+  });
   await check('resolver: unknown link', async (page) => {
     await page.goto(`${base}/?l=${'A'.repeat(43)}`);
     await page.getByText('Link not found').waitFor({ timeout: 30_000 });

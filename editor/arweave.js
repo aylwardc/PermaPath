@@ -7,6 +7,10 @@
 
 export const APP_NAME = 'PermaPath';
 export const UPLOAD_URL = 'https://upload.ardrive.io/v1/tx';
+// Fallback if Turbo is down or stops free uploads: arweave.net's own bundler.
+// Also free for small items, but changes take a few minutes (not seconds) to
+// show up in search, since it has no instant feed like Turbo's.
+export const FALLBACK_UPLOAD_URL = 'https://up.arweave.net/tx';
 // Every record is signature-checked, so any endpoint is safe to use; more
 // endpoints just means fresher results and fewer outages.
 export const GRAPHQL_ENDPOINTS = [
@@ -17,7 +21,7 @@ export const GRAPHQL_ENDPOINTS = [
 ];
 // Network settings. The editor uses these defaults; the CLI routes through
 // permapath.link first (see lib/permapath.js) so agents only contact one domain.
-let uploadUrls = [UPLOAD_URL];
+let uploadUrls = [UPLOAD_URL, FALLBACK_UPLOAD_URL];
 // Where to download a record's body when it has one (older records only).
 let rawBase = 'https://arweave.net/raw';
 
@@ -256,8 +260,9 @@ export async function verifyNode(node) {
   return verifyDataItem({ id: node.id, signature: node.signature, ownerKey: node.ownerKey, tags: node.tagList, data });
 }
 
-// Tries each upload URL in order; moves on only if one is unreachable or
-// failing (5xx), not when it rejects the item.
+// Tries each upload URL in order. Moves on when one is unreachable, failing
+// (5xx), rate limiting (429) or asking for payment (402, e.g. if a free tier
+// ends); any other rejection means the item itself is bad, so it stops.
 export async function upload(item) {
   let lastError;
   for (const url of uploadUrls) {
@@ -273,14 +278,17 @@ export async function upload(item) {
       lastError = err;
       continue;
     }
-    if (res.status >= 500) {
+    if (res.status >= 500 || res.status === 402 || res.status === 429) {
       lastError = new Error(`Upload failed (${res.status})`);
       continue;
     }
     if (!res.ok) throw new Error(`Upload failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
-    const body = await res.json();
-    if (body.id !== item.id) throw new Error('Upload returned an unexpected ID');
-    return body;
+    // Services reply in different shapes (up.arweave.net has no "id"). The ID
+    // comes from our own signature, so it can't be changed; just reject a mismatch.
+    let body = {};
+    try { body = await res.json(); } catch { /* not JSON: fine */ }
+    if (body.id && body.id !== item.id) throw new Error('Upload returned an unexpected ID');
+    return { ...body, id: item.id };
   }
   throw lastError || new Error('Upload failed');
 }

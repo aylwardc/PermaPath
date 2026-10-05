@@ -58,3 +58,33 @@ test('empty-body item verifies from its parts; tampering fails', async () => {
   assert.equal(await verifyDataItem({ ...parts, ownerKey: (await loadKey(generateKeyText())).ownerKey }), false);
   assert.equal(await verifyDataItem({ ...parts, data: 'x' }), false);
 });
+
+test('upload falls back to up.arweave.net when Turbo is down or wants payment, not on bad items', async () => {
+  const { upload, UPLOAD_URL, FALLBACK_UPLOAD_URL } = await import('../editor/arweave.js');
+  const key = await loadKey(generateKeyText());
+  const item = await createDataItem(key, [{ name: 'App-Name', value: 'PermaPath' }], '');
+  const original = globalThis.fetch;
+  const run = async (turbo) => {
+    const calls = [];
+    globalThis.fetch = async (url) => {
+      calls.push(url);
+      if (url === UPLOAD_URL) return turbo();
+      return new Response(JSON.stringify({ 'bundle-id': 'x', 'bundle-status': 'complete' }), { status: 200 });
+    };
+    try { return { result: await upload(item), calls }; } catch (err) { return { err, calls }; }
+  };
+  try {
+    let r = await run(() => new Response('pay up', { status: 402 }));
+    assert.equal(r.result.id, item.id);
+    assert.deepEqual(r.calls, [UPLOAD_URL, FALLBACK_UPLOAD_URL]);
+    r = await run(() => { throw new TypeError('fetch failed'); });
+    assert.equal(r.result.id, item.id);
+    r = await run(() => new Response('bad item', { status: 400 }));
+    assert.match(r.err.message, /400/);
+    assert.deepEqual(r.calls, [UPLOAD_URL], 'no fallback for a rejected item');
+    r = await run(() => new Response(JSON.stringify({ id: 'someone-elses-id' }), { status: 200 }));
+    assert.match(r.err.message, /unexpected ID/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

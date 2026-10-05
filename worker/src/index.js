@@ -19,29 +19,38 @@ const GRAPHQL_UPSTREAMS = {
   permagate: 'https://permagate.io/graphql',
   frostor: 'https://frostor.xyz/graphql',
 };
-const UPLOAD_UPSTREAM = 'https://upload.ardrive.io/v1/tx';
+// Turbo first; arweave.net's bundler if Turbo is down, rate limiting or asks for payment.
+const UPLOAD_UPSTREAMS = ['https://upload.ardrive.io/v1/tx', 'https://up.arweave.net/tx'];
 const MAX_BODY = 200 * 1024; // free uploads are under 100 KiB; GraphQL queries are tiny
 
-async function relay(target, request) {
+// Relays a POST to the first target that takes it; moves on only for
+// unreachable, 5xx, 402 or 429 (same rule as the client's upload()).
+async function relay(targets, request) {
   const body = await request.arrayBuffer();
   if (body.byteLength > MAX_BODY) return new Response('Too large', { status: 413 });
-  try {
-    const res = await fetch(target, {
-      method: 'POST',
-      headers: { 'content-type': request.headers.get('content-type') || 'application/octet-stream' },
-      body,
-      signal: AbortSignal.timeout(20_000),
-    });
-    return new Response(res.body, { status: res.status, headers: { 'content-type': res.headers.get('content-type') || 'text/plain' } });
-  } catch (err) {
-    return new Response(`Upstream unreachable: ${err.name || 'error'}`, { status: 502 });
+  let last = new Response('Upstream unreachable', { status: 502 });
+  for (const target of [].concat(targets)) {
+    try {
+      const res = await fetch(target, {
+        method: 'POST',
+        headers: { 'content-type': request.headers.get('content-type') || 'application/octet-stream' },
+        body,
+        signal: AbortSignal.timeout(20_000),
+      });
+      const out = new Response(res.body, { status: res.status, headers: { 'content-type': res.headers.get('content-type') || 'text/plain' } });
+      if (res.status >= 500 || res.status === 402 || res.status === 429) { last = out; continue; }
+      return out;
+    } catch (err) {
+      last = new Response(`Upstream unreachable: ${err.name || 'error'}`, { status: 502 });
+    }
   }
+  return last;
 }
 
 async function api(url, request) {
   const graphql = url.pathname.match(/^\/api\/graphql\/([a-z]+)$/);
   if (graphql && GRAPHQL_UPSTREAMS[graphql[1]] && request.method === 'POST') return relay(GRAPHQL_UPSTREAMS[graphql[1]], request);
-  if (url.pathname === '/api/upload' && request.method === 'POST') return relay(UPLOAD_UPSTREAM, request);
+  if (url.pathname === '/api/upload' && request.method === 'POST') return relay(UPLOAD_UPSTREAMS, request);
   const raw = url.pathname.match(/^\/api\/raw\/([A-Za-z0-9_-]{43})$/);
   if (raw && request.method === 'GET') {
     for (const gateway of GATEWAYS) {

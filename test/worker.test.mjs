@@ -117,3 +117,16 @@ test('api: raw data tries gateways in order', async () => {
     stub.restore();
   }
 });
+
+test('api: upload relay falls back to up.arweave.net on 402/5xx', async () => {
+  const stub = stubFetch((url) => (url.startsWith('https://upload.ardrive.io')
+    ? new Response('payment required', { status: 402 })
+    : new Response('{"bundle-status":"complete"}', { headers: { 'content-type': 'application/json' } })));
+  try {
+    const res = await worker.fetch(new Request('https://permapath.link/api/upload', { method: 'POST', body: 'bytes' }));
+    assert.equal(res.status, 200);
+    assert.deepEqual(stub.calls.map((c) => c.url), ['https://upload.ardrive.io/v1/tx', 'https://up.arweave.net/tx']);
+  } finally {
+    stub.restore();
+  }
+});

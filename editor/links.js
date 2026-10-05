@@ -57,6 +57,21 @@ export function updateTags({ linkId, destination, name, disabled, resolver, kind
 }
 
 
+// The same record often comes back from several search services, and a service
+// can return a broken copy (frostor.xyz returns signature "<not-found>" for
+// older records). Keep, per ID, the first copy whose signature checks out, so a
+// bad copy never hides a good one. Prefers copies that carry a confirmation time.
+async function validCopies(nodes) {
+  const byId = new Map();
+  for (const n of nodes) byId.set(n.id, [...(byId.get(n.id) || []), n]);
+  const picked = await Promise.all([...byId.values()].map(async (copies) => {
+    copies.sort((a, b) => (b.confirmedAt ? 1 : 0) - (a.confirmedAt ? 1 : 0));
+    for (const n of copies) if (await verifyNode(n)) return n;
+    return null;
+  }));
+  return picked.filter(Boolean);
+}
+
 const usable = (tags, type) => tags['App-Name'] === APP_NAME && tags['App-Version'] === APP_VERSION
   && tags.Type === type && /^\d{1,16}$/.test(tags.Seq || '');
 
@@ -107,11 +122,7 @@ export async function fetchLinks(key, endpoints = GRAPHQL_ENDPOINTS) {
   }));
   const ok = results.filter((r) => r.status === 'fulfilled');
   if (!ok.length) throw new Error('Couldn’t reach the Arweave network. Try again in a moment.');
-  const byId = new Map();
-  for (const r of ok) for (const n of r.value) if (n.ownerKey === ownerKey) byId.set(n.id, n);
-  const nodes = [...byId.values()];
-  const valid = await Promise.all(nodes.map((n) => verifyNode(n)));
-  return buildLinks(nodes.filter((_, i) => valid[i]));
+  return buildLinks(await validCopies(ok.flatMap((r) => r.value).filter((n) => n.ownerKey === ownerKey)));
 }
 
 // pending: local writes not yet seen in GraphQL, as link states with `postedAt`.
@@ -165,14 +176,12 @@ export async function fetchLinkHistory(linkId, endpoints = GRAPHQL_ENDPOINTS) {
   }));
   const ok = results.filter((r) => r.status === 'fulfilled');
   if (!ok.length) throw new Error('Couldn’t reach the Arweave network. Try again in a moment.');
-  const byId = new Map();
-  for (const r of ok) for (const n of r.value) if (!byId.has(n.id) || n.confirmedAt) byId.set(n.id, n);
-  const genesis = byId.get(linkId);
-  if (!genesis || !(await verifyNode(genesis))) return null;
-  const updates = [...byId.values()].filter((n) => n.id !== linkId && n.ownerKey === genesis.ownerKey
-    && n.tags.Link === linkId && usable(n.tags, 'update'));
-  const valid = await Promise.all(updates.map((n) => verifyNode(n)));
-  const records = [genesis, ...updates.filter((_, i) => valid[i])];
+  const all = ok.flatMap((r) => r.value);
+  const [genesis] = await validCopies(all.filter((n) => n.id === linkId));
+  if (!genesis) return null;
+  const updates = await validCopies(all.filter((n) => n.id !== linkId && n.ownerKey === genesis.ownerKey
+    && n.tags.Link === linkId && usable(n.tags, 'update')));
+  const records = [genesis, ...updates];
   const history = records.map((n) => ({ ...toState(n.id, Number(n.tags.Seq), n.tags), confirmedAt: n.confirmedAt }))
     .sort((a, b) => b.seq - a.seq);
   return {

@@ -155,7 +155,9 @@ $('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget))
 async function signIn(text) {
   key = await loadKey(text);
   keyText = text.trim();
-  $('account').textContent = `Key ${key.owners[0].slice(0, 6)}…${key.owners[0].slice(-4)}`;
+  // The public ID (derived from the key, safe to show), not the secret key itself.
+  $('account').textContent = `ID ${key.owners[0].slice(0, 6)}…${key.owners[0].slice(-4)}`;
+  $('account').title = 'Your public ID. It’s safe to share and appears on every link you make. Your key is the secret; use Copy key.';
   show('app');
   // Let password managers notice the "navigation" and offer to save.
   history.pushState({}, '', location.pathname + location.search + '#links');
@@ -550,12 +552,6 @@ $('create-form').addEventListener('submit', async (e) => {
       // Show the new link right away (no pop-up); tap it for the QR code.
       links = overlayPending(links.filter((l) => !l.unindexed).map(({ pending, ...l }) => l), readPending()).links;
       render();
-      const card = $('links').querySelector(`[data-id="${id}"]`);
-      if (card) {
-        card.classList.add('just-added');
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => card.classList.remove('just-added'), 2500);
-      }
       refresh(); // reconcile with Arweave in the background
     } catch (err) {
       showError($('create-error'), err);

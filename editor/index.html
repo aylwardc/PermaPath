@@ -20,6 +20,15 @@
 <meta name="theme-color" content="#0b6bcb">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "PermaPath", "url": "https://permapath.link/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any", "description": "Links that never die and QR codes you never have to reprint. Create a permanent link or QR code, then change where it points whenever you need to. Optional password protection. Free, no account.", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}</script>
 <link rel="stylesheet" href="styles.css">
+<!-- Fetch every module at once instead of discovering them one import at a time. -->
+<link rel="modulepreload" href="app.js">
+<link rel="modulepreload" href="qr.js">
+<link rel="modulepreload" href="vendor/qrcode.mjs">
+<link rel="modulepreload" href="arweave.js">
+<link rel="modulepreload" href="links.js">
+<link rel="modulepreload" href="config.js">
+<link rel="modulepreload" href="page.js">
+<link rel="modulepreload" href="lock.js">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6bcb'/%3E%3Cpath d='M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM10 10h2v2h-2z' fill='white'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -31,9 +40,9 @@
   <p class="intro">Share a link or print its QR code once, then point it somewhere new whenever you need to. The link and the code never change. Lock it with a password when it’s private.</p>
 
   <noscript><p class="card">Signing in and creating links needs JavaScript.</p></noscript>
-  <!-- Hidden until app.js is ready, so the buttons are never dead; the rest of
-       this page is readable without scripts (search engines, link previews). -->
-  <form id="login-form" class="card" hidden>
+  <!-- Shown at once; its buttons stay disabled until app.js is ready, so they're
+       never dead. The rest of the page is readable without scripts. -->
+  <form id="login-form" class="card">
     <!-- Not used by PermaPath. Kept (visually hidden) so password managers
          see a username + password pair to save and fill. -->
     <label class="pm-only" aria-hidden="true">Account name
@@ -43,10 +52,10 @@
       <input id="login-key" name="password" type="password" autocomplete="current-password" required spellcheck="false">
     </label>
     <p class="error" id="login-error" hidden></p>
-    <button class="primary" type="submit">Sign in</button>
+    <button class="primary" type="submit" data-needs-js disabled>Sign in</button>
   </form>
 
-  <p class="center" id="new-key-row" hidden><button id="new-key" class="link" type="button">Create a key</button>
+  <p class="center" id="new-key-row"><button id="new-key" class="link" type="button" data-needs-js disabled>Create a key</button>
     <span class="muted nowrap">· Free, no email needed</span></p>
 
   <div class="info">
@@ -246,9 +255,12 @@
     <p class="url"><a id="qr-url" target="_blank" rel="noreferrer"></a></p>
     <p class="small"><a id="qr-history" target="_blank" rel="noopener">Public history of this link</a></p>
     <div class="row">
+      <button type="button" id="qr-share">Share</button>
+      <button type="button" id="qr-copy">Copy link</button>
+    </div>
+    <div class="row">
       <button type="button" id="qr-png">Download PNG</button>
       <button type="button" id="qr-svg">Download SVG</button>
-      <button type="button" id="qr-copy">Copy link</button>
     </div>
     <button class="primary" value="close">Done</button>
   </form>

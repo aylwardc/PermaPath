@@ -10,6 +10,7 @@ const $ = (id) => document.getElementById(id);
 const PENDING_SLOW_MS = 30 * 60_000;
 
 let key = null; // { privateKey, publicKey, owners }
+let keyText = ''; // kept in memory only, for "Copy key"
 let links = [];
 let pollTimer = null;
 
@@ -151,8 +152,9 @@ $('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget))
 
 // ---------- sign in / new key ----------
 
-async function signIn(keyText) {
-  key = await loadKey(keyText);
+async function signIn(text) {
+  key = await loadKey(text);
+  keyText = text.trim();
   $('account').textContent = `Key ${key.owners[0].slice(0, 6)}…${key.owners[0].slice(-4)}`;
   show('app');
   // Let password managers notice the "navigation" and offer to save.
@@ -188,6 +190,8 @@ $('newkey-form').addEventListener('submit', async (e) => {
   await signIn($('newkey-key').value);
 });
 
+$('copy-key').addEventListener('click', (e) => copy(keyText, e.currentTarget));
+
 $('signout').addEventListener('click', () => {
   key = null;
   location.replace(location.pathname + location.search);
@@ -197,7 +201,7 @@ $('signout').addEventListener('click', () => {
 
 async function refresh() {
   clearTimeout(pollTimer);
-  $('list-status').textContent = 'Loading…';
+  if (!links.length) $('list-status').textContent = 'Loading…'; // quiet when refreshing a list already shown
   let fetched;
   try {
     fetched = await fetchLinks(key);
@@ -315,7 +319,7 @@ function render() {
     }
     // Tapping anywhere on the card (except its buttons) opens the QR code.
     const openFromCard = (e) => { if (!e.target.closest('button, a, input')) openQr(view); };
-    return h('li', { class: 'card link-item clickable', onclick: openFromCard, title: 'Show QR code' },
+    return h('li', { class: 'card link-item clickable', onclick: openFromCard, title: 'Show QR code', 'data-id': link.id },
       thumb,
       h('div', {},
         h('h3', {}, view.name || 'Untitled link', statusChip(link), lockChip),
@@ -543,8 +547,16 @@ $('create-form').addEventListener('submit', async (e) => {
       if (published) trackPublishing(destination);
       e.target.reset();
       createFields.reset();
-      await refresh();
-      openQr(state);
+      // Show the new link right away (no pop-up); tap it for the QR code.
+      links = overlayPending(links.filter((l) => !l.unindexed).map(({ pending, ...l }) => l), readPending()).links;
+      render();
+      const card = $('links').querySelector(`[data-id="${id}"]`);
+      if (card) {
+        card.classList.add('just-added');
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => card.classList.remove('just-added'), 2500);
+      }
+      refresh(); // reconcile with Arweave in the background
     } catch (err) {
       showError($('create-error'), err);
     }

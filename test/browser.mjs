@@ -152,6 +152,15 @@ if (which === 'all' || which === 'resolver') {
   server.close();
 }
 
+// Creating a link no longer opens the QR pop-up: wait for its card, then tap it.
+async function openCreated(page, name) {
+  const card = page.locator('.link-item', { hasText: name }).first();
+  await card.waitFor({ timeout: 60_000 });
+  assert.equal(await page.locator('#qr-dialog').isVisible(), false, 'no pop-up after creating');
+  await card.locator('h3').click();
+  await page.locator('#qr-dialog').waitFor({ state: 'visible', timeout: 30_000 });
+}
+
 if (which === 'all' || which === 'editor') {
   const { server, base } = process.env.WORKER ? await serveWorker() : await serve(path.join(root, 'editor'));
   if (process.env.WORKER) console.log(`(editor served through the Worker at ${base})`);
@@ -167,11 +176,15 @@ if (which === 'all' || which === 'editor') {
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByText('No links yet').waitFor({ timeout: 30_000 });
 
+    if (process.env.BROWSER !== 'webkit') {
+      await page.getByRole('button', { name: 'Copy key' }).click();
+      assert.equal(await page.evaluate(() => navigator.clipboard.readText()), keyText, 'Copy key copies the key');
+    }
     await page.locator('#create-dest').fill('example.com/?pp=editor-v0');
     await page.locator('#create-name').fill('Browser test');
     await page.getByRole('button', { name: 'Create link' }).click();
+    await openCreated(page, 'Browser test');
     const dialog = page.locator('#qr-dialog');
-    await dialog.waitFor({ state: 'visible', timeout: 30_000 });
     const url = await page.locator('#qr-url').textContent();
     assert.match(url, /^https:\/\/arweave\.net\/.+\?l=[A-Za-z0-9_-]{43}$/);
     assert.ok(await dialog.locator('svg path').count() === 1, 'QR rendered');
@@ -278,7 +291,7 @@ if (which === 'all' || which === 'editor') {
     await page.locator('#create-page-preview').waitFor({ timeout: 20_000 });
     assert.match(await page.locator('#create-page-size').textContent(), /Page size: \d+ KB of 95 KB/);
     await page.getByRole('button', { name: 'Create link' }).click();
-    await page.locator('#qr-dialog').waitFor({ state: 'visible', timeout: 60_000 });
+    await openCreated(page, 'Test café menu');
     await page.getByRole('button', { name: 'Done' }).click();
 
     const card = page.locator('.link-item', { hasText: 'Test café menu' });
@@ -329,7 +342,7 @@ if (which === 'all' || which === 'editor') {
     await page.locator('#create-dest').fill('example.com/?pp=imp-orig');
     await page.locator('#create-name').fill('Original');
     await page.getByRole('button', { name: 'Create link' }).click();
-    await page.locator('#qr-dialog').waitFor({ state: 'visible', timeout: 30_000 });
+    await openCreated(page, 'Original');
     const origId = (await page.locator('#qr-url').textContent()).split('?l=')[1];
     await page.getByRole('button', { name: 'Done' }).click();
 
@@ -395,7 +408,7 @@ if (which === 'all' || which === 'editor') {
     await page.locator('#create-password').fill('blue');
     await page.locator('#create-password-hint').getByText(/Short passwords/).waitFor(); // advised, not enforced
     await page.getByRole('button', { name: 'Create link' }).click();
-    await page.locator('#qr-dialog').waitFor({ state: 'visible', timeout: 60_000 });
+    await openCreated(page, 'Family info');
     const lockedId = (await page.locator('#qr-url').textContent()).split('?l=')[1];
     await page.getByRole('button', { name: 'Done' }).click();
     const card = page.locator('.link-item', { hasText: 'Family info' });

@@ -50,6 +50,8 @@ async function check(name, fn) {
     console.log(`FAIL ${name}\n     ${err.message.split('\n').slice(0, 6).join('\n     ')}`);
     await page.screenshot({ path: `/tmp/claude-1000/pp-fail-${name.replace(/\W+/g, '-')}.png` }).catch(() => {});
   }
+  // Let fake responses still in flight finish quietly instead of crashing the run.
+  await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => {});
   await context.close();
 }
 

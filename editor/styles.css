@@ -194,4 +194,3 @@ input.switch-input:focus-visible { outline: 2px solid var(--accent); outline-off
 button.link:disabled { opacity: .5; text-decoration: none; }
 
 .header-btn { font-size: .85rem; padding: .3rem .65rem; border-radius: 6px; flex: none; }
-.link-item.just-added { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); transition: box-shadow .4s, border-color .4s; }

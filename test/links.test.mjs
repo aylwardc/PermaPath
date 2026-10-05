@@ -94,3 +94,28 @@ test('Kind: page round-trips and is dropped when there is no destination', () =>
   assert.ok(!linkTags({ name: 'x', kind: 'page', seq: 1 }).some((t) => t.name === 'Kind'));
   assert.ok(updateTags({ linkId: 'L1', destination: 'https://a.example/', kind: 'page', seq: 2 }).some((t) => t.name === 'Kind'));
 });
+
+test('a broken copy from one search service never hides a good copy from another', async () => {
+  const { generateKeyText, loadKey, createDataItem, base64url } = await import('../editor/arweave.js');
+  const { fetchLinks } = await import('../editor/links.js');
+  const { DataItem } = await import('@dha-team/arbundles');
+  const key = await loadKey(generateKeyText());
+  const tags = linkTags({ destination: 'https://a.example/', name: 'Kept', seq: 5 });
+  const item = await createDataItem(key, tags, '');
+  const signature = base64url(new DataItem(Buffer.from(item.bytes)).rawSignature);
+  const node = (sig) => ({ cursor: 'c', node: { id: item.id, signature: sig, owner: { address: key.owners[0], key: key.ownerKey }, data: { size: '0' }, block: null, tags } });
+  const reply = (edges) => new Response(JSON.stringify({ data: { transactions: { pageInfo: { hasNextPage: false }, edges } } }));
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const isLinkQuery = JSON.parse(init.body).query.includes('"link"');
+    if (!isLinkQuery) return reply([]);
+    return url.includes('good') ? reply([node(signature)]) : reply([node('<not-found>')]);
+  };
+  try {
+    // The broken service comes last, the order that used to hide the link.
+    const links = await fetchLinks(key, ['https://good.example/graphql', 'https://broken.example/graphql']);
+    assert.deepEqual(links.map((l) => l.name), ['Kept']);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

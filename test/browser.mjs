@@ -180,6 +180,16 @@ if (which === 'all' || which === 'editor') {
     const pngBytes = fs.readFileSync(await png.path());
     const pngWidth = pngBytes.readUInt32BE(16); // IHDR width
     assert.ok(pngWidth >= 2400 && pngWidth < 2600, `PNG is ${pngWidth}px wide`);
+    // Share falls back to copying the QR image where there's no share sheet (like here).
+    const shareBtn = page.locator('#qr-share');
+    if ((await shareBtn.textContent()) === 'Copy QR') {
+      await shareBtn.click();
+      await page.locator('#qr-share', { hasText: /Copied|Downloaded/ }).waitFor();
+      if (process.env.BROWSER !== 'webkit') {
+        const types = await page.evaluate(async () => (await navigator.clipboard.read())[0].types);
+        assert.ok(types.includes('image/png'), 'QR image copied to the clipboard');
+      }
+    }
     await page.getByRole('button', { name: 'Done' }).click();
 
     const card = page.locator('.link-item').first();
@@ -454,7 +464,8 @@ if (which === 'all' || which === 'editor') {
     try {
       await p.goto(base);
       assert.ok(await p.getByRole('heading', { name: 'Stop reprinting' }).isVisible(), 'landing text visible without JS');
-      assert.equal(await p.locator('#login-form').isVisible(), false, 'sign-in form waits for JS');
+      assert.equal(await p.locator('#login-form').isVisible(), true, 'sign-in form shows at once');
+      assert.equal(await p.getByRole('button', { name: 'Sign in' }).isDisabled(), true, 'but its buttons wait for JS');
       for (const f of ['robots.txt', 'sitemap.xml', 'og.png', 'apple-touch-icon.png', 'compare.html', 'uses.html']) {
         assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
       }

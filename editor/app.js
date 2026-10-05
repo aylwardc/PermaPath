@@ -78,7 +78,9 @@ function addPending(state) {
 
 // ~2400px wide: sharp in print up to ~8 in (20 cm) at 300 dpi. Whole-pixel
 // modules keep the edges crisp.
-function qrPngBlob(text, minWidth = 2400, margin = 4) {
+// Synchronous on purpose: iOS only opens the share sheet if share() is called
+// straight from the tap, with no awaiting first.
+function qrPngBlobSync(text, minWidth = 2400, margin = 4) {
   const { n, dark } = qrMatrix(text);
   const scale = Math.ceil(minWidth / (n + margin * 2));
   const canvas = document.createElement('canvas');
@@ -88,7 +90,35 @@ function qrPngBlob(text, minWidth = 2400, margin = 4) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#000';
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (dark(r, c)) ctx.fillRect((c + margin) * scale, (r + margin) * scale, scale, scale);
-  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const bin = atob(canvas.toDataURL('image/png').split(',')[1]);
+  return new Blob([Uint8Array.from(bin, (ch) => ch.charCodeAt(0))], { type: 'image/png' });
+}
+const qrPngBlob = async (text) => qrPngBlobSync(text);
+
+// Share the QR image (phones: the system share sheet, which also has Copy and
+// Save Image). Where sharing files isn't supported, copy the image instead.
+const canShareFiles = (() => {
+  try { return !!navigator.canShare?.({ files: [new File([''], 'x.png', { type: 'image/png' })] }); } catch { return false; }
+})();
+const shareLabel = canShareFiles ? 'Share' : 'Copy QR';
+
+function shareQr(link, button) {
+  const url = linkUrl(link.id);
+  const blob = qrPngBlobSync(url);
+  if (canShareFiles) {
+    const file = new File([blob], `${fileBase(link)}.png`, { type: 'image/png' });
+    navigator.share({ files: [file], title: link.name || 'QR code', url }).catch((err) => {
+      if (err.name !== 'AbortError') download(blob, file.name); // cancelled is fine
+    });
+    return;
+  }
+  const done = (text) => { const label = button.textContent; button.textContent = text; setTimeout(() => { button.textContent = label; }, 1500); };
+  if (window.ClipboardItem && navigator.clipboard?.write) {
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(() => done('Copied'), () => { download(blob, `${fileBase(link)}.png`); done('Downloaded'); });
+  } else {
+    download(blob, `${fileBase(link)}.png`);
+    done('Downloaded');
+  }
 }
 
 function download(blob, filename) {
@@ -116,6 +146,8 @@ function openQr(link) {
 $('qr-png').addEventListener('click', async () => download(await qrPngBlob(linkUrl(qrLink.id)), `${fileBase(qrLink)}.png`));
 $('qr-svg').addEventListener('click', () => download(new Blob([qrSvg(linkUrl(qrLink.id))], { type: 'image/svg+xml' }), `${fileBase(qrLink)}.svg`));
 $('qr-copy').addEventListener('click', (e) => copy(linkUrl(qrLink.id), e.currentTarget));
+$('qr-share').textContent = shareLabel;
+$('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget));
 
 // ---------- sign in / new key ----------
 
@@ -289,6 +321,7 @@ function render() {
         h('h3', {}, view.name || 'Untitled link', statusChip(link), lockChip),
         dest,
         h('div', { class: 'row' },
+          h('button', { type: 'button', onclick: (e) => shareQr(view, e.currentTarget) }, shareLabel),
           view.destination
             ? [
               h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'),
@@ -767,6 +800,6 @@ $('ai-tip-copy').addEventListener('click', (e) => copy(
   e.currentTarget,
 ));
 
-$('login-form').hidden = false;
-$('new-key-row').hidden = false;
+// Ready: enable the sign-in buttons (shown, but disabled, until now).
+for (const b of document.querySelectorAll('[data-needs-js]')) b.disabled = false;
 show('signin');

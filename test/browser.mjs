@@ -225,7 +225,11 @@ if (which === 'all' || which === 'editor') {
     assert.equal(await cards.count(), 3);
     await cards.first().getByText('Batch test 1').waitFor();
     await cards.first().getByText('No destination yet').waitFor();
-    await cards.first().getByRole('button', { name: 'Set destination' }).click();
+    await cards.first().locator('h3').click(); // tapping the card opens its QR code
+    await page.locator('#qr-dialog').waitFor({ state: 'visible' });
+    await page.getByRole('button', { name: 'Done' }).click();
+    await cards.first().getByRole('button', { name: 'Set destination' }).click(); // buttons don't
+    assert.equal(await page.locator('#qr-dialog').isVisible(), false);
     await page.locator('#edit-title').filter({ hasText: 'Set destination' }).waitFor();
     await page.locator('#edit-dest').fill('example.com/?pp=batch-set');
     await page.getByRole('button', { name: 'Save' }).click();
@@ -365,8 +369,8 @@ if (which === 'all' || which === 'editor') {
       throw new Error('link state never updated');
     };
     const destOf = async (card) => {
-      // the owner's editor shows "Password protected"; the real URL is inside the locked page
-      await card.getByText('Password protected').first().waitFor({ timeout: 30_000 });
+      // locked links get a lock badge; the owner's editor reveals the real destination
+      await card.locator('.chip.locked').waitFor({ timeout: 30_000 });
     };
 
     await page.goto(base);
@@ -387,6 +391,7 @@ if (which === 'all' || which === 'editor') {
     const card = page.locator('.link-item', { hasText: 'Family info' });
     await destOf(card);
     const gateUrl = await destinationOf(lockedId);
+    await card.getByText('https://example.com/?pp=secret-v1').waitFor({ timeout: 60_000 }); // revealed to the owner
     const gate1 = await fetchGate(gateUrl);
     assert.ok(!gate1.includes('secret-v1'), 'destination hidden in locked page');
 

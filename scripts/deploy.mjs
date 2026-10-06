@@ -6,7 +6,13 @@
 // The signer doesn't matter to users; it just keeps deploys attributable.
 import fs from 'node:fs';
 import path from 'node:path';
-import { APP_NAME, generateKeyText, loadKey, createDataItem, upload } from '../editor/arweave.js';
+import { APP_NAME, generateKeyText, loadKey, createDataItem, upload, configureNetwork, UPLOAD_URL, FALLBACK_UPLOAD_URL } from '../editor/arweave.js';
+
+// Turbo's free tier is 10 MiB per IP address, ever, and this machine's is used
+// up (2026-10-06). Uploads Turbo refuses go through permapath.link's relay next
+// (Cloudflare's IP, still free and fast), and only then to up.arweave.net, which
+// is free too but takes much longer to reach the gateways the Worker reads.
+configureNetwork({ upload: [UPLOAD_URL, 'https://permapath.link/api/upload', FALLBACK_UPLOAD_URL] });
 import { buildCli } from './build-cli.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');

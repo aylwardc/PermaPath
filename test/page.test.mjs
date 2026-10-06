@@ -31,3 +31,35 @@ test('buildPageHtml validates input; parsePageHtml rejects other pages', () => {
   assert.throws(() => buildPageHtml({ title: 'x', image: 'data:text/html;base64,AAAA' }), /image/);
   assert.equal(parsePageHtml('<html><body>hello</body></html>'), null);
 });
+
+test('contact cards: buttons, vCard, and round trip', async () => {
+  const { buildPageHtml, parsePageHtml, buildVcard, cleanContact } = await import('../editor/page.js');
+  const contact = { name: 'Sam Q. Rivera', role: 'Owner, Rivera Bikes', phone: '+1 (555) 010-0100', email: 'sam@example.com', website: 'example.com', address: '12 Main St; Springfield' };
+  const vcardUrl = `https://arweave.net/${'V'.repeat(43)}`;
+  const html = buildPageHtml({ text: 'Found my bike?', contact, vcardUrl });
+  assert.match(html, /<h1>Sam Q\. Rivera<\/h1>/);
+  assert.match(html, /href="tel:\+15550100100"/);
+  assert.match(html, /href="sms:\+15550100100"/);
+  assert.match(html, /href="mailto:sam@example\.com"/);
+  assert.match(html, new RegExp(`href="${vcardUrl}" class="save" download="Sam-Q-Rivera\\.vcf"`));
+  assert.match(html, /google\.com\/maps\/search\/\?api=1&amp;query=12%20Main%20St%3B%20Springfield/);
+  const back = parsePageHtml(html);
+  assert.deepEqual(back.contact, cleanContact(contact));
+  assert.equal(back.vcardUrl, vcardUrl);
+  assert.equal(back.text, 'Found my bike?');
+
+  const v = buildVcard(contact, 'Note, with; specials\nand lines');
+  assert.match(v, /^BEGIN:VCARD\r\nVERSION:3\.0\r\nFN:Sam Q\. Rivera\r\nN:Rivera;Sam Q\.;;;\r\n/);
+  assert.match(v, /TITLE:Owner\\, Rivera Bikes\r\n/);
+  assert.match(v, /ADR;TYPE=HOME:;;12 Main St\\; Springfield;;;;\r\n/);
+  assert.match(v, /NOTE:Note\\, with\\; specials\\nand lines\r\n/);
+  assert.match(buildVcard({ name: 'Cher' }), /N:;Cher;;;/);
+
+  // Only the name is required; fields are checked.
+  assert.throws(() => cleanContact({ phone: '555' }), /Add a name/);
+  assert.throws(() => cleanContact({ name: 'x', phone: 'call me' }), /phone/);
+  assert.throws(() => cleanContact({ name: 'x', email: 'nope' }), /email/);
+  assert.throws(() => buildPageHtml({ contact: { name: 'x' }, vcardUrl: 'https://evil.example/x.vcf' }), /contact file/);
+  // Script-looking text stays text.
+  assert.doesNotMatch(buildPageHtml({ contact: { name: '<script>alert(1)</script>' } }), /<script>alert/);
+});

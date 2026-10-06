@@ -10,7 +10,7 @@ import { APP_NAME, generateKeyText, loadKey, createDataItem, upload } from '../e
 import { buildCli } from './build-cli.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const TYPES = { '.xml': 'application/xml', '.txt': 'text/plain; charset=utf-8', '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const TYPES = { '.xml': 'application/xml', '.txt': 'text/plain; charset=utf-8', '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.pdf': 'application/pdf' };
 const MAX_FREE = 100 * 1024;
 
 function deployKey() {

@@ -220,6 +220,18 @@ if (which === 'all' || which === 'resolver') {
 }
 
 // Creating a link no longer opens the QR pop-up: wait for its card, then tap it.
+// A just-uploaded file from whichever gateway has it first (up to 5 minutes).
+async function fetchFresh(id, mustInclude) {
+  for (let i = 0; i < 30; i++) {
+    for (const gateway of ['https://turbo-gateway.com', 'https://ardrive.net', 'https://arweave.net']) {
+      const text = await fetch(`${gateway}/${id}`).then((r) => (r.ok ? r.text() : ''), () => '');
+      if (text.includes(mustInclude)) return text;
+    }
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+  return 'Not found';
+}
+
 async function openCreated(page, name) {
   const card = page.locator('.link-item', { hasText: name }).first();
   await card.waitFor({ timeout: 60_000 });
@@ -377,12 +389,9 @@ if (which === 'all' || which === 'editor') {
     const destText = await card.locator('.dest').first().textContent();
     const pageId = destText.match(/Page · https:\/\/arweave\.net\/([A-Za-z0-9_-]{43})/)?.[1];
     assert.ok(pageId, `card shows the page destination (got "${destText}")`);
-    // The published page itself (fresh uploads appear on turbo-gateway within seconds).
-    let html = '';
-    for (let i = 0; i < 12 && !html.includes('Test café menu'); i++) {
-      html = await (await fetch(`https://turbo-gateway.com/${pageId}`)).text().catch(() => '');
-      if (!html.includes('Test café menu')) await page.waitForTimeout(5000);
-    }
+    // The published page itself. Fresh uploads usually appear on turbo-gateway
+    // within seconds, but some days take minutes, so try every gateway for 5 minutes.
+    const html = await fetchFresh(pageId, 'Test café menu');
     assert.match(html, /<h1>Test café menu<\/h1>/);
     assert.match(html, /<p>Soup of the day<br>Bread<\/p>/);
     assert.match(html, /<img id="pp-photo" src="data:image\/jpeg;base64,/);
@@ -445,13 +454,9 @@ if (which === 'all' || which === 'editor') {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.route(/^https:\/\/arweave\.net\/[A-Za-z0-9_-]{43}\?check=/, (route) => route.fulfill({ status: 200, body: 'ok' }));
     const fetchGate = async (url) => {
-      const id = url.match(/arweave\.net\/([A-Za-z0-9_-]{43})/)[1];
-      for (let i = 0; i < 12; i++) {
-        const html = await (await fetch(`https://turbo-gateway.com/${id}`)).text().catch(() => '');
-        if (html.includes('permapath-locked')) return html;
-        await page.waitForTimeout(5000);
-      }
-      throw new Error('locked page never appeared');
+      const html = await fetchFresh(url.match(/arweave\.net\/([A-Za-z0-9_-]{43})/)[1], 'permapath-locked');
+      if (!html.includes('permapath-locked')) throw new Error('locked page never appeared');
+      return html;
     };
     // Serve a locked page from the local origin so we can type into it.
     const visit = async (html) => {

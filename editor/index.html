@@ -132,6 +132,7 @@
   <nav class="site-footer" aria-label="More">
     <a href="uses.html">Ideas</a>
     <a href="compare.html">Compare</a>
+    <a href="print.html">Printing tips</a>
     <a href="llms.txt">For AI assistants</a>
     <a href="history.html">Look up a link’s history</a>
     <a href="https://github.com/aylwardc/PermaPath" rel="noopener">Source code (MIT)</a>
@@ -185,6 +186,7 @@
           <div class="seg">
             <label><input type="radio" name="create-kind" value="url" checked><span>A web address</span></label>
             <label><input type="radio" name="create-kind" value="page"><span>A page you write</span></label>
+            <label><input type="radio" name="create-kind" value="contact"><span>A contact card</span></label>
           </div>
         </fieldset>
         <div data-kind="url">
@@ -192,11 +194,31 @@
             <input id="create-dest" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://example.com/menu">
           </label>
         </div>
-        <div data-kind="page" hidden>
-          <label>Page title
+        <div data-kind="page contact" hidden>
+          <label data-kind="page">Page title
             <input id="create-page-title" maxlength="200" placeholder="If you found this bike">
           </label>
-          <label>Text <span class="muted">(optional; web addresses become links)</span>
+          <div data-kind="contact" hidden>
+            <label>Name
+              <input id="create-contact-name" maxlength="100" autocomplete="off" placeholder="Sam Rivera">
+            </label>
+            <label>Title or company <span class="muted">(optional)</span>
+              <input id="create-contact-role" maxlength="100" autocomplete="off" placeholder="Owner, Rivera Bikes">
+            </label>
+            <label>Phone <span class="muted">(optional; adds Call and Text buttons)</span>
+              <input id="create-contact-phone" type="tel" maxlength="40" autocomplete="off" placeholder="+1 555 010 0100">
+            </label>
+            <label>Email <span class="muted">(optional)</span>
+              <input id="create-contact-email" type="email" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sam@example.com">
+            </label>
+            <label>Website <span class="muted">(optional)</span>
+              <input id="create-contact-website" type="text" inputmode="url" maxlength="300" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="example.com">
+            </label>
+            <label>Address <span class="muted">(optional; adds Directions)</span>
+              <input id="create-contact-address" maxlength="300" autocomplete="off" placeholder="12 Main St, Springfield">
+            </label>
+          </div>
+          <label><span data-kind="page">Text</span><span data-kind="contact" hidden>Note</span> <span class="muted">(optional; web addresses become links)</span>
             <textarea id="create-page-text" rows="6" maxlength="20000" placeholder="Thanks for scanning! This bike belongs to Sam. Please call or text 555-0100 and I’ll come pick it up."></textarea>
           </label>
           <label>Photo <span class="muted">(optional)</span>
@@ -207,7 +229,7 @@
             <button type="button" class="link" id="create-page-remove">Remove photo</button>
           </div>
           <p class="muted small" id="create-page-size"></p>
-          <p class="muted small">Pages are stored permanently, and each edit saves a new version. Turn on Password protect to keep one private.</p>
+          <p class="muted small"><span data-kind="page">Pages are</span><span data-kind="contact" hidden>Contact cards are</span> stored permanently, and each edit saves a new version. Turn on Password protect to keep one private.</p>
         </div>
         <div class="lock">
           <label class="switch"><input type="checkbox" role="switch" class="switch-input" id="create-lock"> Password protect</label>
@@ -274,7 +296,7 @@
     <h2 id="qr-title"></h2>
     <div id="qr-big" class="qr-big"></div>
     <p class="url"><a id="qr-url" target="_blank" rel="noreferrer"></a></p>
-    <p class="small"><a id="qr-history" target="_blank" rel="noopener">Public history of this link</a></p>
+    <p class="small"><a id="qr-history" target="_blank" rel="noopener">Public history of this link</a> · <a href="print.html" target="_blank" rel="noopener">Printing tips</a></p>
     <div class="row">
       <button type="button" id="qr-share">Share</button>
       <button type="button" id="qr-copy">Copy link</button>
@@ -315,6 +337,7 @@
         <div class="seg">
           <label><input type="radio" name="edit-kind" value="url" checked><span>A web address</span></label>
           <label><input type="radio" name="edit-kind" value="page"><span>A page you write</span></label>
+          <label><input type="radio" name="edit-kind" value="contact"><span>A contact card</span></label>
         </div>
       </fieldset>
       <div data-kind="url">
@@ -322,11 +345,31 @@
           <input id="edit-dest" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://example.com/menu">
         </label>
       </div>
-      <div data-kind="page" hidden>
-        <label>Page title
+      <div data-kind="page contact" hidden>
+        <label data-kind="page">Page title
           <input id="edit-page-title" maxlength="200" placeholder="If you found this bike">
         </label>
-        <label>Text <span class="muted">(optional; web addresses become links)</span>
+        <div data-kind="contact" hidden>
+          <label>Name
+            <input id="edit-contact-name" maxlength="100" autocomplete="off" placeholder="Sam Rivera">
+          </label>
+          <label>Title or company <span class="muted">(optional)</span>
+            <input id="edit-contact-role" maxlength="100" autocomplete="off" placeholder="Owner, Rivera Bikes">
+          </label>
+          <label>Phone <span class="muted">(optional; adds Call and Text buttons)</span>
+            <input id="edit-contact-phone" type="tel" maxlength="40" autocomplete="off" placeholder="+1 555 010 0100">
+          </label>
+          <label>Email <span class="muted">(optional)</span>
+            <input id="edit-contact-email" type="email" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sam@example.com">
+          </label>
+          <label>Website <span class="muted">(optional)</span>
+            <input id="edit-contact-website" type="text" inputmode="url" maxlength="300" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="example.com">
+          </label>
+          <label>Address <span class="muted">(optional; adds Directions)</span>
+            <input id="edit-contact-address" maxlength="300" autocomplete="off" placeholder="12 Main St, Springfield">
+          </label>
+        </div>
+        <label><span data-kind="page">Text</span><span data-kind="contact" hidden>Note</span> <span class="muted">(optional; web addresses become links)</span>
           <textarea id="edit-page-text" rows="6" maxlength="20000" placeholder="Thanks for scanning! This bike belongs to Sam. Please call or text 555-0100 and I’ll come pick it up."></textarea>
         </label>
         <label>Photo <span class="muted">(optional)</span>
@@ -337,7 +380,7 @@
           <button type="button" class="link" id="edit-page-remove">Remove photo</button>
         </div>
         <p class="muted small" id="edit-page-size"></p>
-        <p class="muted small">Pages are stored permanently, and each edit saves a new version. Turn on Password protect to keep one private.</p>
+        <p class="muted small"><span data-kind="page">Pages are</span><span data-kind="contact" hidden>Contact cards are</span> stored permanently, and each edit saves a new version. Turn on Password protect to keep one private.</p>
       </div>
       <div class="lock">
         <label class="switch"><input type="checkbox" role="switch" class="switch-input" id="edit-lock"> Password protect</label>

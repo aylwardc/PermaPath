@@ -3,7 +3,7 @@ import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
 import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow } from './links.js';
 import { optionsFields } from './options.js';
 import { RESOLVER_BASE } from './config.js';
-import { buildPageHtml, parsePageHtml, pageBytes, compressImage, PAGE_MAX_BYTES, LOCKED_PAGE_MAX } from './page.js';
+import { buildPageHtml, parsePageHtml, pageBytes, compressImage, buildVcard, PAGE_MAX_BYTES, LOCKED_PAGE_MAX, CONTACT_FIELDS } from './page.js';
 import { buildLockedHtml, parseLockedHtml, openLocked, passwordAdvice, suggestPassphrase } from './lock.js';
 import { APP_NAME } from './arweave.js';
 import { keyToPhrase, phraseToKey } from './phrase.js';
@@ -337,7 +337,8 @@ async function reveal(url) {
   try {
     const env = parseLockedHtml((await loadArweaveHtml(url)) || '');
     const { payload } = await openLocked(env, key.lockKey);
-    revealed.set(url, payload.type === 'url' ? payload.url : `Page · ${parsePageHtml(payload.html)?.title || 'untitled'}`);
+    const page = payload.type === 'page' ? parsePageHtml(payload.html) : null;
+    revealed.set(url, payload.type === 'url' ? payload.url : page?.contact ? `Contact card · ${page.contact.name}` : `Page · ${page?.title || 'untitled'}`);
   } catch {
     revealed.delete(url); // try again on the next refresh
     return;
@@ -393,13 +394,14 @@ function describe(state) {
   if (!state.destination) return 'No destination yet';
   if (isOffNow(state)) return state.disabled ? 'Turned off' : `Turned off automatically ${when(state.offAt)}`;
   if (state.kind === 'locked') return revealed.get(state.destination) || 'Password protected';
+  if (state.kind === 'contact') return `Contact card · ${state.destination}`;
   return state.kind === 'page' ? `Page · ${state.destination}` : state.destination;
 }
 
 function render() {
   $('links').replaceChildren(...links.map((link) => {
     const view = link.pending || link;
-    if ((view.kind === 'page' || view.kind === 'locked') && view.destination) checkServed(view.destination);
+    if (['page', 'contact', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
     if (view.kind === 'locked' && view.destination) reveal(view.destination);
     const lockChip = view.kind === 'locked' ? h('span', { class: 'chip locked', title: 'Password protected' }, '🔒 Locked') : null;
     const thumb = h('button', { class: 'qr-thumb', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
@@ -410,7 +412,7 @@ function render() {
       dest.push(h('p', { class: 'dest pending' }, `→ ${describe(link.pending)} (going live…)`));
     } else if (publishingPages.has(view.destination)) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
-      dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
+      dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : view.kind === 'contact' ? 'contact card' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
     } else if (link.unindexed) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
       dest.push(h('p', { class: 'muted dest note' }, 'Just created. Usually live within a minute.'));
@@ -468,6 +470,19 @@ async function publishPage(page) {
   return `https://arweave.net/${item.id}`;
 }
 
+// The "Save contact" file for a contact card: its own upload, served as
+// text/vcard so phones open it straight into Add to Contacts.
+async function publishVcard(vcard) {
+  const item = await createDataItem(key, [
+    { name: 'Content-Type', value: 'text/vcard' },
+    { name: 'App-Name', value: APP_NAME },
+    { name: 'App-Version', value: '1' },
+    { name: 'Type', value: 'vcard' },
+  ], vcard);
+  await upload(item);
+  return `https://arweave.net/${item.id}`;
+}
+
 async function loadArweaveHtml(url) {
   const id = url.match(PAGE_URL)?.[1];
   if (!id) return null;
@@ -491,19 +506,26 @@ async function loadPage(url) {
 async function publishDestination(fields, onProgress = () => {}) {
   const k = fields.kind();
   if (!fields.locked()) {
-    if (k !== 'page') return { destination: normalizeDestination(fields.url()), kind: '' };
+    if (k === 'url') return { destination: normalizeDestination(fields.url()), kind: '' };
     const page = fields.page();
     buildPageHtml(page); // validate before uploading anything
+    if (k === 'contact') {
+      onProgress('Saving your contact card…');
+      const vcardUrl = await publishVcard(buildVcard(page.contact, page.text));
+      return { destination: await publishPage({ ...page, vcardUrl }), kind: 'contact', title: page.contact.name, published: true };
+    }
     onProgress('Saving your page…');
     return { destination: await publishPage(page), kind: 'page', title: page.title, published: true };
   }
   let payload, title = '';
-  if (k === 'page') {
+  if (k === 'page' || k === 'contact') {
     const page = fields.page();
+    // Locked: the contact file goes inside the encrypted page, not in a public upload.
+    if (k === 'contact') page.vcardUrl = `data:text/vcard;charset=utf-8,${encodeURIComponent(buildVcard(page.contact, page.text))}`;
     const html = buildPageHtml(page);
     if (pageBytes(html) > LOCKED_PAGE_MAX) throw new Error('This page is too large to lock. Shorten the text or remove the photo.');
     payload = { type: 'page', html };
-    title = page.title;
+    title = k === 'contact' ? page.contact.name : page.title;
   } else {
     payload = { type: 'url', url: normalizeDestination(fields.url()) };
   }
@@ -549,10 +571,16 @@ function destinationFields(prefix) {
   const pageLimit = () => (lock.checked ? LOCKED_PAGE_MAX : PAGE_MAX_BYTES);
 
   const kind = () => [...radios].find((r) => r.checked).value;
-  const page = () => ({ title: title.value.trim(), text: text.value, image });
+  const contactInput = (f) => $(`${prefix}-contact-${f}`);
+  const contact = () => Object.fromEntries(CONTACT_FIELDS.map((f) => [f, contactInput(f).value.trim()]));
+  const page = () => (kind() === 'contact'
+    ? { text: text.value, image, contact: contact() }
+    : { title: title.value.trim(), text: text.value, image });
+  const isPageKind = (k) => k === 'page' || k === 'contact';
   function updateSize() {
     try {
-      const bytes = pageBytes(buildPageHtml({ ...page(), title: page().title || 'x' }));
+      const p = page();
+      const bytes = pageBytes(buildPageHtml(p.contact ? { ...p, contact: { ...p.contact, name: p.contact.name || 'x', phone: '', email: '', website: '' } } : { ...p, title: p.title || 'x' }));
       size.textContent = `Page size: ${Math.ceil(bytes / 1024)} KB of ${Math.floor(pageLimit() / 1024)} KB`;
     } catch (err) {
       size.textContent = err.message;
@@ -560,10 +588,10 @@ function destinationFields(prefix) {
   }
   function setKind(k) {
     for (const r of radios) r.checked = r.value === k;
-    for (const el of root.querySelectorAll('[data-kind]')) el.hidden = el.dataset.kind !== k;
+    for (const el of root.querySelectorAll('[data-kind]')) el.hidden = !el.dataset.kind.split(' ').includes(k);
     const name = $(`${prefix}-name`);
-    name.placeholder = k === 'page' ? 'Defaults to the page title' : (prefix === 'create' ? 'Restaurant menu' : '');
-    if (k === 'page') updateSize();
+    name.placeholder = k === 'page' ? 'Defaults to the page title' : k === 'contact' ? 'Defaults to the contact’s name' : (prefix === 'create' ? 'Restaurant menu' : '');
+    if (isPageKind(k)) updateSize();
   }
   function setImage(dataUrl) {
     image = dataUrl;
@@ -594,7 +622,7 @@ function destinationFields(prefix) {
     password.value = '';
     password.placeholder = keep ? 'Leave blank to keep the current password' : 'Password for this link';
     hint.textContent = hintDefault;
-    if (kind() === 'page') updateSize();
+    if (isPageKind(kind())) updateSize();
   }
   lock.addEventListener('change', () => setLocked(lock.checked, keep));
   password.addEventListener('input', () => { hint.textContent = passwordAdvice(password.value) || hintDefault; });
@@ -609,12 +637,21 @@ function destinationFields(prefix) {
     url: () => $(`${prefix}-dest`).value,
     setUrl: (v) => { $(`${prefix}-dest`).value = v; },
     page,
-    loadPage(p) { title.value = p.title; text.value = p.text; setImage(p.image); },
+    loadPage(p) {
+      title.value = p.contact ? '' : p.title;
+      text.value = p.text;
+      for (const f of CONTACT_FIELDS) contactInput(f).value = p.contact?.[f] || '';
+      setImage(p.image);
+    },
     locked: () => lock.checked,
     setLocked,
     password: () => password.value,
     keep: () => keep,
-    reset() { title.value = ''; text.value = ''; setImage(''); $(`${prefix}-dest`).value = ''; setKind('url'); setLocked(false); },
+    reset() {
+      title.value = ''; text.value = ''; setImage(''); $(`${prefix}-dest`).value = '';
+      for (const f of CONTACT_FIELDS) contactInput(f).value = '';
+      setKind('url'); setLocked(false);
+    },
   };
 }
 
@@ -690,14 +727,14 @@ async function openEdit(link) {
     }
     editFields.setLocked(true, opened.keep);
     if (opened.payload.type === 'page') {
-      editFields.setKind('page');
       const page = parsePageHtml(opened.payload.html);
+      editFields.setKind(page?.contact ? 'contact' : 'page');
       if (page) editFields.loadPage(page);
     } else {
       editFields.setUrl(opened.payload.url);
     }
-  } else if (view.kind === 'page') {
-    editFields.setKind('page');
+  } else if (view.kind === 'page' || view.kind === 'contact') {
+    editFields.setKind(view.kind);
     $('edit-progress').textContent = 'Loading your page…';
     const page = await loadPage(view.destination);
     if (editing !== link) return;

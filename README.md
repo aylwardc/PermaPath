@@ -22,7 +22,10 @@ registry: just Arweave data items and gateway GraphQL.
   the link.
 - **Hosted pages:** the editor can also publish a simple page (title, text, photo) as one
   self-contained HTML file on Arweave (under 95 KiB, free) and use `https://arweave.net/<page>`
-  as the destination. Link records carry `Kind: page` as an editor hint. Edits publish a new
+  as the destination. Link records carry `Kind: page` as an editor hint. **Contact cards** are
+  hosted pages with Call / Text / Email / Website / Directions buttons and a "Save contact"
+  vCard, uploaded separately as `text/vcard` (or embedded as a data URL when locked);
+  `Kind: contact`. Edits publish a new
   page version and wait until arweave.net serves it before repointing the link.
 - **Password protection:** the editor can put any destination (web address or page) behind a
   "locked page": one self-contained HTML file on Arweave whose content is AES-GCM encrypted
@@ -117,6 +120,7 @@ node test/browser.mjs            # live browser tests (real uploads, free)
 WORKER=1 node test/browser.mjs editor   # editor tests served through the Worker
 BROWSER=webkit node test/browser.mjs    # same tests on WebKit (Safari's engine)
 cd editor && python3 -m http.server 8090   # run the editor locally
+node scripts/make-print-test.mjs  # rebuild editor/print-test-*.pdf (the printable size test)
 ```
 
 ## Deploy

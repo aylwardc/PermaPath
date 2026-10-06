@@ -695,6 +695,34 @@ if (which === 'all' || which === 'editor') {
     await page.getByRole('button', { name: 'Create link' }).click();
     await page.locator('.link-item', { hasText: 'Slow one' }).getByText(/backup uploader/).waitFor({ timeout: 10_000 });
   });
+  await check('editor: event page with an Add to calendar file; edit loads it back', async (page) => {
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByText('No links yet').waitFor({ timeout: 30_000 });
+    await page.locator('#create-form').getByText('An event').click();
+    await page.locator('#create-event-name').fill('Bike swap');
+    await page.locator('#create-event-start').fill('2030-05-04T10:00');
+    await page.locator('#create-event-end').fill('2030-05-04T14:00');
+    await page.locator('#create-event-location').fill('12 Main St');
+    await page.locator('#create-page-text').fill('Bring a bike to trade.');
+    await page.getByRole('button', { name: 'Create link' }).click();
+    const card = page.locator('.link-item', { hasText: 'Bike swap' });
+    const dest = await card.locator('.dest').first().textContent({ timeout: 30_000 });
+    assert.match(dest, /^Event · https:\/\/arweave\.net\//);
+    const pageId = dest.match(/arweave\.net\/([A-Za-z0-9_-]{43})/)[1];
+    const html = await fetchFresh(pageId, 'Add to calendar');
+    assert.match(html, /<p class="when">Saturday, May 4, 2030 · 10:00 AM – 2:00 PM/);
+    const icsId = html.match(/href="https:\/\/arweave\.net\/([A-Za-z0-9_-]{43})" class="save"/)[1];
+    const ics = await fetch(`https://arweave.net/${icsId}`);
+    assert.equal(ics.headers.get('content-type'), 'text/calendar');
+    assert.match(await ics.text(), /SUMMARY:Bike swap/);
+    await card.getByRole('button', { name: 'Edit' }).click();
+    await page.waitForFunction(() => document.getElementById('edit-event-name').value === 'Bike swap', null, { timeout: 30_000 });
+    assert.equal(await page.locator('#edit-event-start').inputValue(), '2030-05-04T10:00');
+    assert.equal(await page.locator('input[name=edit-kind]:checked').getAttribute('value'), 'event');
+  });
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);
     await page.locator('#login-key').fill('definitely not a key');

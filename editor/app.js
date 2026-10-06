@@ -3,7 +3,7 @@ import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
 import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
 import { optionsFields } from './options.js';
 import { RESOLVER_BASE } from './config.js';
-import { buildPageHtml, parsePageHtml, pageBytes, compressImage, buildVcard, PAGE_MAX_BYTES, LOCKED_PAGE_MAX, CONTACT_FIELDS } from './page.js';
+import { buildPageHtml, parsePageHtml, pageBytes, compressImage, buildVcard, buildIcs, PAGE_MAX_BYTES, LOCKED_PAGE_MAX, CONTACT_FIELDS } from './page.js';
 import { buildLockedHtml, parseLockedHtml, openLocked, passwordAdvice, suggestPassphrase } from './lock.js';
 import { APP_NAME } from './arweave.js';
 import { keyToPhrase, phraseToKey } from './phrase.js';
@@ -347,7 +347,7 @@ async function reveal(url) {
     const env = parseLockedHtml((await loadArweaveHtml(url)) || '');
     const { payload } = await openLocked(env, key.lockKey);
     const page = payload.type === 'page' ? parsePageHtml(payload.html) : null;
-    revealed.set(url, payload.type === 'url' ? payload.url : page?.contact ? `Contact card · ${page.contact.name}` : `Page · ${page?.title || 'untitled'}`);
+    revealed.set(url, payload.type === 'url' ? payload.url : page?.contact ? `Contact card · ${page.contact.name}` : page?.event ? `Event · ${page.event.name}` : `Page · ${page?.title || 'untitled'}`);
   } catch {
     revealed.delete(url); // try again on the next refresh
     return;
@@ -404,6 +404,7 @@ function describe(state) {
   if (isOffNow(state)) return state.disabled ? 'Turned off' : `Turned off automatically ${when(state.offAt)}`;
   if (state.kind === 'locked') return revealed.get(state.destination) || 'Password protected';
   if (state.kind === 'contact') return `Contact card · ${state.destination}`;
+  if (state.kind === 'event') return `Event · ${state.destination}`;
   return state.kind === 'page' ? `Page · ${state.destination}` : state.destination;
 }
 
@@ -487,7 +488,7 @@ function render() {
   if (table) {
     for (const link of links) {
       const view = link.pending || link;
-      if (['page', 'contact', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
+      if (['page', 'contact', 'event', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
       if (view.kind === 'locked' && view.destination) reveal(view.destination);
     }
     renderTable();
@@ -495,7 +496,7 @@ function render() {
   }
   $('links').replaceChildren(...links.map((link) => {
     const view = link.pending || link;
-    if (['page', 'contact', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
+    if (['page', 'contact', 'event', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
     if (view.kind === 'locked' && view.destination) reveal(view.destination);
     const lockChip = view.kind === 'locked' ? h('span', { class: 'chip locked', title: 'Password protected' }, '🔒 Locked') : null;
     const thumb = h('button', { class: 'qr-thumb', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
@@ -507,7 +508,7 @@ function render() {
       if (link.pending.slow) dest.push(h('p', { class: 'muted dest note' }, SLOW_NOTE));
     } else if (publishingPages.has(view.destination)) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
-      dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : view.kind === 'contact' ? 'contact card' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
+      dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : view.kind === 'contact' ? 'contact card' : view.kind === 'event' ? 'event page' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
     } else if (link.unindexed) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
       dest.push(h('p', { class: 'muted dest note' }, link.pending?.slow ? SLOW_NOTE : 'Just created. Usually live within a minute.'));
@@ -574,15 +575,16 @@ async function publishPage(page) {
   return `https://arweave.net/${item.id}`;
 }
 
-// The "Save contact" file for a contact card: its own upload, served as
-// text/vcard so phones open it straight into Add to Contacts.
-async function publishVcard(vcard) {
+// A contact card's "Save contact" file or an event's "Add to calendar" file:
+// its own upload, served with its real type so phones open it straight into
+// Contacts or Calendar.
+async function publishFile(body, contentType, type) {
   const item = await createDataItem(key, [
-    { name: 'Content-Type', value: 'text/vcard' },
+    { name: 'Content-Type', value: contentType },
     { name: 'App-Name', value: APP_NAME },
     { name: 'App-Version', value: '1' },
-    { name: 'Type', value: 'vcard' },
-  ], vcard);
+    { name: 'Type', value: type },
+  ], body);
   await uploadTracked(item);
   return `https://arweave.net/${item.id}`;
 }
@@ -615,21 +617,27 @@ async function publishDestination(fields, onProgress = () => {}) {
     buildPageHtml(page); // validate before uploading anything
     if (k === 'contact') {
       onProgress('Saving your contact card…');
-      const vcardUrl = await publishVcard(buildVcard(page.contact, page.text));
+      const vcardUrl = await publishFile(buildVcard(page.contact, page.text), 'text/vcard', 'vcard');
       return { destination: await publishPage({ ...page, vcardUrl }), kind: 'contact', title: page.contact.name, published: true };
+    }
+    if (k === 'event') {
+      onProgress('Saving your event…');
+      const icsUrl = await publishFile(buildIcs(page.event, page.text), 'text/calendar', 'ics');
+      return { destination: await publishPage({ ...page, icsUrl }), kind: 'event', title: page.event.name, published: true };
     }
     onProgress('Saving your page…');
     return { destination: await publishPage(page), kind: 'page', title: page.title, published: true };
   }
   let payload, title = '';
-  if (k === 'page' || k === 'contact') {
+  if (k === 'page' || k === 'contact' || k === 'event') {
     const page = fields.page();
-    // Locked: the contact file goes inside the encrypted page, not in a public upload.
+    // Locked: the contact or calendar file goes inside the encrypted page, not in a public upload.
     if (k === 'contact') page.vcardUrl = `data:text/vcard;charset=utf-8,${encodeURIComponent(buildVcard(page.contact, page.text))}`;
+    if (k === 'event') page.icsUrl = `data:text/calendar;charset=utf-8,${encodeURIComponent(buildIcs(page.event, page.text))}`;
     const html = buildPageHtml(page);
     if (pageBytes(html) > LOCKED_PAGE_MAX) throw new Error('This page is too large to lock. Shorten the text or remove the photo.');
     payload = { type: 'page', html };
-    title = k === 'contact' ? page.contact.name : page.title;
+    title = k === 'contact' ? page.contact.name : k === 'event' ? page.event.name : page.title;
   } else {
     payload = { type: 'url', url: normalizeDestination(fields.url()) };
   }
@@ -675,16 +683,29 @@ function destinationFields(prefix) {
   const pageLimit = () => (lock.checked ? LOCKED_PAGE_MAX : PAGE_MAX_BYTES);
 
   const kind = () => [...radios].find((r) => r.checked).value;
+  text.dataset.placeholder = text.placeholder;
   const contactInput = (f) => $(`${prefix}-contact-${f}`);
   const contact = () => Object.fromEntries(CONTACT_FIELDS.map((f) => [f, contactInput(f).value.trim()]));
-  const page = () => (kind() === 'contact'
-    ? { text: text.value, image, contact: contact() }
-    : { title: title.value.trim(), text: text.value, image });
-  const isPageKind = (k) => k === 'page' || k === 'contact';
+  // Event times are entered in this device's time zone, and the page shows them in it.
+  const eventInput = (f) => $(`${prefix}-event-${f}`);
+  const zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })();
+  const localMs = (v) => (v ? new Date(v).getTime() : 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  const toLocal = (ms) => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const event = () => ({
+    name: eventInput('name').value.trim(), start: localMs(eventInput('start').value), end: localMs(eventInput('end').value),
+    tz: zone, location: eventInput('location').value.trim(),
+  });
+  eventInput('zone').textContent = `Times are in your time zone (${zone.replace(/_/g, ' ')}), and the page shows them that way.`;
+  const page = () => (kind() === 'contact' ? { text: text.value, image, contact: contact() }
+    : kind() === 'event' ? { text: text.value, image, event: event() }
+      : { title: title.value.trim(), text: text.value, image });
+  const isPageKind = (k) => k === 'page' || k === 'contact' || k === 'event';
   function updateSize() {
     try {
       const p = page();
-      const bytes = pageBytes(buildPageHtml(p.contact ? { ...p, contact: { ...p.contact, name: p.contact.name || 'x', phone: '', email: '', website: '' } } : { ...p, title: p.title || 'x' }));
+      const bytes = pageBytes(buildPageHtml(p.contact ? { ...p, contact: { ...p.contact, name: p.contact.name || 'x', phone: '', email: '', website: '' } }
+        : p.event ? { ...p, event: { ...p.event, name: p.event.name || 'x', start: p.event.start || 1, end: 0 } } : { ...p, title: p.title || 'x' }));
       size.textContent = `Page size: ${Math.ceil(bytes / 1024)} KB of ${Math.floor(pageLimit() / 1024)} KB`;
     } catch (err) {
       size.textContent = err.message;
@@ -694,7 +715,9 @@ function destinationFields(prefix) {
     for (const r of radios) r.checked = r.value === k;
     for (const el of root.querySelectorAll('[data-kind]')) el.hidden = !el.dataset.kind.split(' ').includes(k);
     const name = $(`${prefix}-name`);
-    name.placeholder = k === 'page' ? 'Defaults to the page title' : k === 'contact' ? 'Defaults to the contact’s name' : (prefix === 'create' ? 'Restaurant menu' : '');
+    name.placeholder = k === 'page' ? 'Defaults to the page title' : k === 'contact' ? 'Defaults to the contact’s name'
+      : k === 'event' ? 'Defaults to the event name' : (prefix === 'create' ? 'Restaurant menu' : '');
+    text.placeholder = k === 'event' ? 'What to bring, where to park, who to ask for…' : text.dataset.placeholder;
     if (isPageKind(k)) updateSize();
   }
   function setImage(dataUrl) {
@@ -745,6 +768,10 @@ function destinationFields(prefix) {
       title.value = p.contact ? '' : p.title;
       text.value = p.text;
       for (const f of CONTACT_FIELDS) contactInput(f).value = p.contact?.[f] || '';
+      eventInput('name').value = p.event?.name || '';
+      eventInput('start').value = toLocal(p.event?.start);
+      eventInput('end').value = toLocal(p.event?.end);
+      eventInput('location').value = p.event?.location || '';
       setImage(p.image);
     },
     locked: () => lock.checked,
@@ -754,6 +781,7 @@ function destinationFields(prefix) {
     reset() {
       title.value = ''; text.value = ''; setImage(''); $(`${prefix}-dest`).value = '';
       for (const f of CONTACT_FIELDS) contactInput(f).value = '';
+      for (const f of ['name', 'start', 'end', 'location']) eventInput(f).value = '';
       setKind('url'); setLocked(false);
     },
   };
@@ -832,12 +860,12 @@ async function openEdit(link) {
     editFields.setLocked(true, opened.keep);
     if (opened.payload.type === 'page') {
       const page = parsePageHtml(opened.payload.html);
-      editFields.setKind(page?.contact ? 'contact' : 'page');
+      editFields.setKind(page?.contact ? 'contact' : page?.event ? 'event' : 'page');
       if (page) editFields.loadPage(page);
     } else {
       editFields.setUrl(opened.payload.url);
     }
-  } else if (view.kind === 'page' || view.kind === 'contact') {
+  } else if (view.kind === 'page' || view.kind === 'contact' || view.kind === 'event') {
     editFields.setKind(view.kind);
     $('edit-progress').textContent = 'Loading your page…';
     const page = await loadPage(view.destination);

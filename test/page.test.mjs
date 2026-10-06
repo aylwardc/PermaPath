@@ -63,3 +63,27 @@ test('contact cards: buttons, vCard, and round trip', async () => {
   // Script-looking text stays text.
   assert.doesNotMatch(buildPageHtml({ contact: { name: '<script>alert(1)</script>' } }), /<script>alert/);
 });
+
+test('event pages: when, where, calendar file and round trip', async () => {
+  const { buildPageHtml, parsePageHtml, buildIcs, eventWhen, cleanEvent } = await import('../editor/page.js');
+  const event = { name: 'Fall Bike Swap', start: Date.parse('2026-11-01T02:00:00Z'), end: Date.parse('2026-11-01T04:00:00Z'), tz: 'America/Los_Angeles', location: '12 Main St, Springfield' };
+  assert.equal(eventWhen(event), 'Saturday, October 31, 2026 · 7:00 PM – 9:00 PM PDT');
+  assert.equal(eventWhen({ ...event, end: Date.parse('2026-11-02T04:00:00Z') }), 'Saturday, October 31, 2026, 7:00 PM – Sunday, November 1, 2026, 8:00 PM PST');
+  const icsUrl = `https://arweave.net/${'E'.repeat(43)}`;
+  const html = buildPageHtml({ text: 'Bring your bike.', event, icsUrl });
+  assert.match(html, /<h1>Fall Bike Swap<\/h1>/);
+  assert.match(html, /class="when">Saturday, October 31, 2026 · 7:00 PM – 9:00 PM PDT</);
+  assert.match(html, new RegExp(`href="${icsUrl}" class="save" download="Fall-Bike-Swap\\.ics" rel="noopener">Add to calendar`));
+  assert.match(html, /calendar\.google\.com\/calendar\/render\?action=TEMPLATE&amp;text=Fall%20Bike%20Swap&amp;dates=20261101T020000Z\/20261101T040000Z/);
+  const back = parsePageHtml(html);
+  assert.deepEqual(back.event, cleanEvent(event));
+  assert.equal(back.icsUrl, icsUrl);
+
+  const ics = buildIcs({ ...event, end: 0 }, 'x'.repeat(200));
+  assert.match(ics, /^BEGIN:VCALENDAR\r\nVERSION:2\.0\r\n/);
+  assert.match(ics, /DTSTART:20261101T020000Z\r\nDTEND:20261101T030000Z\r\n/, 'an hour long when there is no end');
+  assert.ok(ics.split('\r\n').every((line) => new TextEncoder().encode(line).length <= 75), 'long lines are folded');
+  assert.throws(() => cleanEvent({ name: 'x' }), /starts/);
+  assert.throws(() => cleanEvent({ name: 'x', start: 10, end: 5 }), /end after/);
+  assert.throws(() => buildPageHtml({ event, icsUrl: 'https://evil.example/x.ics' }), /calendar file/);
+});

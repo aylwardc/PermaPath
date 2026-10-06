@@ -119,3 +119,42 @@ test('a broken copy from one search service never hides a good copy from another
     globalThis.fetch = original;
   }
 });
+
+test('v3 fields round-trip, and updates using them name the current resolver', async () => {
+  const { RESOLVER_TX } = await import('../editor/config.js');
+  const { checkRoutes, carry } = await import('../editor/links.js');
+  const routes = checkRoutes([{ os: 'ios', to: 'apps.apple.com/x' }, { days: '51', from: '11:00', until: '15:00', to: 'example.com/lunch' }]);
+  assert.deepEqual(routes, [{ to: 'https://apps.apple.com/x', os: 'ios' }, { to: 'https://example.com/lunch', days: '15', from: '11:00', until: '15:00' }]);
+  const v3 = { count: true, message: 'See you next year', offAt: 1_900_000_000_000, routes, tz: 'America/New_York' };
+
+  const created = linkTags({ destination: 'https://a.example/', seq: 1, ...v3 });
+  assert.ok(!created.some((t) => t.name === 'Resolver'), 'new links embed the current resolver already');
+  const update = updateTags({ linkId: 'L1', destination: 'https://a.example/', seq: 2, ...v3 });
+  assert.equal(update.find((t) => t.name === 'Resolver').value, RESOLVER_TX);
+  assert.equal(update.find((t) => t.name === 'Time-Zone').value, 'America/New_York');
+
+  const [link] = buildLinks([node('L1', created), node('u1', update)]);
+  assert.deepEqual(carry(link), { name: '', destination: 'https://a.example/', disabled: false, resolver: RESOLVER_TX, kind: '', ...v3 });
+
+  // Turning everything off keeps the resolver (harmless) and drops the tags.
+  const plain = updateTags({ linkId: 'L1', ...carry(link), count: false, message: '', offAt: 0, routes: [], seq: 3 });
+  assert.deepEqual(plain.map((t) => t.name).filter((n) => ['Count', 'Message', 'Off-At', 'Routes', 'Time-Zone'].includes(n)), []);
+  assert.ok(plain.some((t) => t.name === 'Resolver'));
+  // Device-only rules need no time zone.
+  assert.ok(!linkTags({ destination: 'https://a.example/', seq: 1, routes: [routes[0]], tz: 'UTC' }).some((t) => t.name === 'Time-Zone'));
+});
+
+test('Off-At in the past reads as off; bad rules are rejected with a reason', async () => {
+  const { checkRoutes } = await import('../editor/links.js');
+  assert.equal(linkStatus({ destination: 'https://a.example/', disabled: false, offAt: Date.now() - 1 }), 'off');
+  assert.equal(linkStatus({ destination: 'https://a.example/', disabled: false, offAt: Date.now() + 60_000 }), 'live');
+  assert.throws(() => checkRoutes([{ to: 'https://a.example/' }]), /needs a device/);
+  assert.throws(() => checkRoutes([{ to: 'nope', os: 'ios' }]), /web address/);
+  assert.throws(() => checkRoutes([{ to: 'a.example', from: '9am' }]), /09:00/);
+  assert.throws(() => checkRoutes([{ to: 'a.example', after: 5, before: 5 }]), /end date/);
+  assert.throws(() => checkRoutes(Array(11).fill({ to: 'a.example', os: 'ios' })), /Up to 10/);
+  assert.throws(() => checkRoutes(Array(4).fill({ to: `a.example/${'x'.repeat(900)}`, os: 'ios' })), /too long/);
+  assert.throws(() => linkTags({ destination: 'https://a.example/', seq: 1, message: 'x'.repeat(201) }), /longer than 200/);
+  assert.throws(() => checkRoutes([{ to: 'a.example', days: '0123456' }]), /needs a device/, 'every day, all day is just the destination');
+  assert.deepEqual(checkRoutes([{ to: 'a.example', days: '0123456', from: '09:00' }]), [{ to: 'https://a.example/', from: '09:00' }]);
+});

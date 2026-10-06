@@ -46,8 +46,21 @@ registry: just Arweave data items and gateway GraphQL.
   frostor.xyz, queried in parallel. Browsers without WebCrypto Ed25519 (pre-2023
   Safari, pre-mid-2025 Chrome) fall back to trusting them in that priority order.
 - **Upgrades:** if a link's newest record has `Resolver: <TX>`, the resolver
-  forwards the scan to that newer resolver page (max 3 hops). Only the link's owner
-  can set it; the editor carries it forward on later edits.
+  forwards the scan to that newer resolver page (max 3 hops), unless it names the
+  resolver itself. Only the link's owner can set it; the editor carries it forward
+  on later edits, and sets it to the current resolver whenever a record uses a v3 tag.
+- **v3 tags** (resolver v3; older resolvers ignore them, hence the `Resolver` tag):
+  `Count: true` makes the resolver ping `permapath.link/api/scan?l=<id>` with
+  `sendBeacon` after the lookup (never delaying the redirect); `Off-At: <unix ms>`
+  turns the link off from then on; `Message` is shown while it's off; `Routes` is a
+  JSON list of rules, first match wins, else `Destination`: `{ "to": URL }` plus any of
+  `os` (`ios`/`android`), `after`/`before` (unix ms), `days` (`"12345"`, 0 = Sunday)
+  and `from`/`until` (`"HH:MM"`, in the `Time-Zone` tag's IANA zone). A rule with an
+  unknown condition is skipped. The editor and CLI turn scan counting on for new links.
+- **Scan counts:** the Worker keeps a daily total per link (UTC days) in one
+  SQLite-backed Durable Object: no IPs, no cookies. Public, unauthenticated, so
+  approximate: `GET /api/scans?l=<id>,<id>` (totals, up to 100),
+  `/api/scans/<id>` (per day), `/api/scans/summary` (all links).
 - **Keys:** Ed25519 seeds, base58-encoded (~44 chars), kept in the user's password
   manager, with an optional 24-word recovery phrase (the same seed in BIP39 words, plus a
   checksum) as a paper backup; `editor/phrase.js`. Data items use ANS-104 signature type 4 (Turbo's "solana" format).
@@ -65,7 +78,7 @@ registry: just Arweave data items and gateway GraphQL.
 | `resolver/index.html` | The page every QR code points at. Single file, no dependencies. |
 | `editor/` | Static site for creating/editing links, plus `history.html?l=<id>` (public, verified change history of any link) and `llms.txt` (instructions for AI assistants: draft a CSV for the user's **Import CSV**). `arweave.js` = keys, ANS-104, upload, GraphQL; `links.js` = protocol; `app.js` = UI. |
 | `scripts/deploy.mjs` | Uploads the resolver or editor to Arweave (signs with `.data/deploy-key`, gitignored). |
-| `worker/` | Cloudflare Worker for permapath.link: serves the current editor from Arweave under one stable origin, so password managers keep autofilling keys across editor deploys. |
+| `worker/` | Cloudflare Worker for permapath.link: serves the current editor from Arweave under one stable origin, so password managers keep autofilling keys across editor deploys; relays `/api` for the CLI; keeps scan counts. |
 | `test/` | Unit tests (`npm test`) and live browser tests (`node test/browser.mjs`). |
 | `spike/` | The original proof-of-concept and its findings. |
 
@@ -82,7 +95,8 @@ export PERMAPATH_KEY=...                  # or --key-file path/to/key
 node cli/permapath.mjs create https://example.com/menu --name "Menu"
 node cli/permapath.mjs set <link-id> https://example.com/menu-v2
 node cli/permapath.mjs show <link-id>     # current destination and history, no key needed
-node cli/permapath.mjs help               # also: keygen, batch, list, rename, off, on, page, edit-page, lock, unlock, qr, --json
+node cli/permapath.mjs scans <link-id>    # scan count per day
+node cli/permapath.mjs help               # also: keygen, phrase, batch, list, rename, off, on, off-at, message, rules, count, page, edit-page, lock, unlock, qr, --json
 ```
 
 ```js

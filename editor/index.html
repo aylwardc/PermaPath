@@ -30,6 +30,7 @@
 <link rel="modulepreload" href="page.js">
 <link rel="modulepreload" href="lock.js">
 <link rel="modulepreload" href="phrase.js">
+<link rel="modulepreload" href="options.js">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6bcb'/%3E%3Cpath d='M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM10 10h2v2h-2z' fill='white'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -107,7 +108,7 @@
     <h2>Not a good fit for</h2>
     <ul class="notes">
       <li><strong>Highly sensitive secrets.</strong> Password protection uses strong encryption, but old versions are never deleted and a short password could eventually be guessed. Use a long one for anything important.</li>
-      <li><strong>Marketing analytics.</strong> PermaPath doesn’t count or track scans. Scanning a code tells no one anything.</li>
+      <li><strong>Marketing analytics.</strong> PermaPath counts scans per day and nothing more: no locations, no devices, nothing about who scanned. Counts are public.</li>
       <li><strong>Changes that must be instant.</strong> Most go live within seconds, but some take up to 20 minutes.</li>
       <li><strong>Big files or full websites.</strong> Pages you write here are simple: text and one photo.</li>
     </ul>
@@ -125,6 +126,7 @@
       <li><strong>Your key is the only way to make changes.</strong> If you lose it, your codes keep working but can’t be pointed anywhere new. Nobody can recover it for you, so also keep its recovery phrase (24 words) on paper.</li>
       <li><strong>Lock what’s private.</strong> With Password protect on, people need the password to see where a link goes or what a page says. Without it, a link works like a printed sign: anyone can see where it points. Link names always stay visible.</li>
       <li><strong>Changes usually go live within seconds,</strong> occasionally up to 20 minutes.</li>
+      <li><strong>More options</strong> on each link: count scans, turn it off on a date with a message, or send iPhones, Android phones or certain days and times somewhere else.</li>
     </ul>
   </div>
   <nav class="site-footer" aria-label="More">
@@ -221,6 +223,7 @@
       <label>Name <span class="muted">(optional)</span>
         <input id="create-name" maxlength="100" placeholder="Restaurant menu">
       </label>
+      <details id="create-options"></details>
       <p class="error" id="create-error" hidden></p>
       <button class="primary" type="submit">Create link</button>
     </form>
@@ -350,6 +353,7 @@
     <label>Name <span class="muted">(optional)</span>
       <input id="edit-name" maxlength="100">
     </label>
+    <details id="edit-options"></details>
     <p class="muted" id="edit-note">Changes usually go live within a minute. The QR code stays the same.</p>
     <p class="muted" id="edit-progress" aria-live="polite"></p>
     <p class="error" id="edit-error" hidden></p>

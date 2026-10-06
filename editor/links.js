@@ -1,6 +1,7 @@
 // PermaPath link protocol: building records, reading state back from GraphQL,
 // and overlaying local not-yet-indexed writes. No DOM here.
 import { APP_NAME, GRAPHQL_ENDPOINTS, gqlAll, verifyNode } from './arweave.js';
+import { RESOLVER_TX } from './config.js';
 
 export const APP_VERSION = '1';
 const BASE_TAGS = [
@@ -24,12 +25,70 @@ export function normalizeDestination(input) {
   return url.href;
 }
 
+// ---------- v3 features: scan counts, auto-off, messages, routing rules ----------
+// Older resolvers ignore these tags, so a record that uses any of them also
+// names the current resolver (Resolver tag): older printed codes forward there.
+// Codes that already embed it ignore a Resolver naming themselves.
+
+export const MESSAGE_MAX = 200;
+export const ROUTES_MAX = 10;
+const ROUTES_MAX_BYTES = 3000; // Arweave tag values are capped at 3 KB
+
+export const usesV3 = (s) => !!(s.count || s.message || s.offAt || s.routes?.length);
+
+// Rules as the resolver reads them: { to, os?, after?, before?, days?, from?, until? }.
+// Normalizes each "to" and throws a readable error for anything the resolver would skip.
+export function checkRoutes(routes = []) {
+  if (routes.length > ROUTES_MAX) throw new Error(`Up to ${ROUTES_MAX} rules per link.`);
+  const out = routes.map((r) => {
+    const rule = { to: normalizeDestination(r.to || '') };
+    if (r.os) {
+      if (r.os !== 'ios' && r.os !== 'android') throw new Error('Device must be iPhone/iPad or Android.');
+      rule.os = r.os;
+    }
+    for (const k of ['after', 'before']) if (r[k] != null && r[k] !== '') rule[k] = Number(r[k]);
+    if (r.days != null && r.days !== '') {
+      if (!/^[0-6]{1,7}$/.test(r.days)) throw new Error('Pick at least one day.');
+      if (r.days.length < 7) rule.days = [...new Set(r.days)].sort().join('');
+    }
+    for (const k of ['from', 'until']) {
+      if (r[k] == null || r[k] === '') continue;
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(r[k])) throw new Error('Times look like 09:00 or 17:30.');
+      rule[k] = r[k];
+    }
+    if (rule.after != null && rule.before != null && rule.after >= rule.before) throw new Error('A rule’s end date must be after its start date.');
+    if (Object.keys(rule).length === 1) throw new Error('Each rule needs a device, days, times or dates.');
+    return rule;
+  });
+  if (new TextEncoder().encode(JSON.stringify(out)).length > ROUTES_MAX_BYTES) throw new Error('These rules are too long. Use fewer rules or shorter web addresses.');
+  return out;
+}
+
+const hasClockRules = (routes) => (routes || []).some((r) => r.days || r.from || r.until);
+
+function v3Tags({ count, message, offAt, routes, tz }) {
+  if (message && message.length > MESSAGE_MAX) throw new Error(`The message is longer than ${MESSAGE_MAX} characters.`);
+  return [
+    ...(count ? [{ name: 'Count', value: 'true' }] : []),
+    ...(offAt ? [{ name: 'Off-At', value: String(offAt) }] : []),
+    ...(message ? [{ name: 'Message', value: message }] : []),
+    ...(routes?.length ? [{ name: 'Routes', value: JSON.stringify(routes) }] : []),
+    ...(routes?.length && hasClockRules(routes) && tz ? [{ name: 'Time-Zone', value: tz }] : []),
+  ];
+}
+
+// The protocol fields of a link state (drops display-only fields like pending).
+export const carry = (s) => ({
+  name: s.name, destination: s.destination, disabled: s.disabled, resolver: s.resolver, kind: s.kind,
+  count: !!s.count, message: s.message || '', offAt: s.offAt || 0, routes: s.routes || [], tz: s.tz || '',
+});
+
 // Full state goes in every record, so the newest record alone describes the link.
 // A link with no destination yet ("not set up", e.g. pre-printed batches) is
 // created turned off, so scans show the resolver's "turned off" message.
 // kind: '' for a web address, 'page' for a PermaPath hosted page, 'locked' for a
 // password-protected locked page (editor hint only; resolvers ignore it).
-export function linkTags({ destination, name, disabled, kind, seq }) {
+export function linkTags({ destination, name, disabled, kind, seq, ...v3 }) {
   return [
     ...BASE_TAGS,
     { name: 'Type', value: 'link' },
@@ -38,11 +97,13 @@ export function linkTags({ destination, name, disabled, kind, seq }) {
     ...(name ? [{ name: 'Name', value: name }] : []),
     ...(disabled || !destination ? [{ name: 'Disabled', value: 'true' }] : []),
     ...(kind && destination ? [{ name: 'Kind', value: kind }] : []),
+    ...v3Tags(v3),
   ];
 }
 
 // `resolver` hands the link off to a newer resolver page; kept on every later update.
-export function updateTags({ linkId, destination, name, disabled, resolver, kind, seq }) {
+export function updateTags({ linkId, destination, name, disabled, resolver, kind, seq, ...v3 }) {
+  if (usesV3(v3)) resolver = RESOLVER_TX;
   return [
     ...BASE_TAGS,
     { name: 'Type', value: 'update' },
@@ -53,6 +114,7 @@ export function updateTags({ linkId, destination, name, disabled, resolver, kind
     ...(disabled || !destination ? [{ name: 'Disabled', value: 'true' }] : []),
     ...(resolver ? [{ name: 'Resolver', value: resolver }] : []),
     ...(kind && destination ? [{ name: 'Kind', value: kind }] : []),
+    ...v3Tags(v3),
   ];
 }
 
@@ -84,7 +146,24 @@ const toState = (id, created, tags) => ({
   disabled: tags.Disabled === 'true',
   resolver: tags.Resolver || '',
   kind: tags.Kind === 'page' || tags.Kind === 'locked' ? tags.Kind : '',
+  count: tags.Count === 'true',
+  message: tags.Message || '',
+  offAt: /^\d{1,16}$/.test(tags['Off-At'] || '') ? Number(tags['Off-At']) : 0,
+  routes: parseRoutes(tags.Routes),
+  tz: tags['Time-Zone'] || '',
 });
+
+function parseRoutes(text) {
+  try {
+    const r = JSON.parse(text || '[]');
+    return Array.isArray(r) ? r.filter((x) => x && typeof x === 'object' && typeof x.to === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+// Off right now: turned off, or past its Off-At time.
+export const isOffNow = (s, now = Date.now()) => s.disabled || (!!s.offAt && now >= s.offAt);
 
 // nodes: [{id, owner, tags}] already filtered to one owner. Returns links, newest first.
 export function buildLinks(nodes) {
@@ -144,7 +223,7 @@ export function overlayPending(links, pending) {
   };
 }
 
-export const linkStatus = (state) => (!state.destination ? 'not set up' : state.disabled ? 'off' : 'live');
+export const linkStatus = (state) => (!state.destination ? 'not set up' : isOffNow(state) ? 'off' : 'live');
 
 // CSV for spreadsheets and label tools (e.g. Avery's QR-from-spreadsheet import).
 // qr_url is what each QR code should encode.

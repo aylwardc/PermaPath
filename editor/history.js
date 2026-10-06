@@ -1,5 +1,5 @@
 // Public history page: history.html?l=<link-id>. Read-only; no key needed.
-import { fetchLinkHistory, linkStatus } from './links.js';
+import { fetchLinkHistory, linkStatus, isOffNow } from './links.js';
 import { qrSvg } from './qr.js';
 import { RESOLVER_BASE } from './config.js';
 
@@ -30,9 +30,38 @@ function safeLink(url) {
 
 function describe(state) {
   if (!state.destination) return h('span', { class: 'muted' }, 'No destination yet');
+  if (!state.disabled && state.offAt) {
+    return h('span', {}, h('span', { class: 'muted' }, `${isOffNow(state) ? 'Turned off' : 'Turns off'} ${when(state.offAt)} · `), describeOn(state));
+  }
+  return describeOn(state);
+}
+
+// Where the link sends people while it's on, plus its other rules.
+function describeOn(state) {
+  const rules = state.routes?.length && !state.disabled
+    ? h('span', { class: 'muted' }, ` · plus ${state.routes.length} other destination${state.routes.length === 1 ? '' : 's'} by device or time: `,
+      ...state.routes.flatMap((r, i) => [i ? ', ' : '', safeLink(r.to)]))
+    : null;
+  return h('span', {}, describeMain(state), rules);
+}
+
+function describeMain(state) {
   if (state.kind === 'locked') return h('span', {}, state.disabled ? 'Turned off · was password protected' : 'Password protected');
   if (state.disabled) return h('span', {}, h('span', { class: 'muted' }, 'Turned off · was '), safeLink(state.destination));
   return safeLink(state.destination);
+}
+
+async function loadScans(id) {
+  $('scans').textContent = '…';
+  try {
+    const res = await fetch(`https://permapath.link/api/scans/${id}`, { signal: AbortSignal.timeout(10_000) });
+    const { total, days } = await res.json();
+    const today = new Date().toISOString().slice(0, 10);
+    const n = days.find((d) => d.day === today)?.n || 0;
+    $('scans').textContent = `${total.toLocaleString()} total · ${n.toLocaleString()} today (days in UTC)`;
+  } catch {
+    $('scans').textContent = 'Couldn’t load the count right now.';
+  }
 }
 
 const CHIPS = { live: ['live', 'Live'], off: ['off', 'Off'], 'not set up': ['off', 'Not set up'] };
@@ -55,6 +84,10 @@ function changeSummary(state, older) {
   if (state.disabled !== older.disabled) parts.push(state.disabled ? 'Turned off' : 'Turned on');
   if (state.name !== older.name) parts.push(state.name ? `Renamed “${state.name}”` : 'Name removed');
   if (state.resolver !== older.resolver) parts.push('Moved to a newer resolver');
+  if (state.count !== older.count) parts.push(state.count ? 'Scan counting on' : 'Scan counting off');
+  if (state.offAt !== older.offAt) parts.push(state.offAt ? `Set to turn off ${when(state.offAt)}` : 'End date removed');
+  if (state.message !== older.message) parts.push(state.message ? 'Off message set' : 'Off message removed');
+  if (JSON.stringify(state.routes) !== JSON.stringify(older.routes)) parts.push(state.routes.length ? 'Device or time rules changed' : 'Device and time rules removed');
   return parts.join(' · ') || 'Re-saved with no changes';
 }
 
@@ -82,6 +115,8 @@ async function show(id, { scrollTop = false } = {}) {
   $('now').replaceChildren(describe(link.current));
   $('qr-url').textContent = `QR code: ${linkUrl(id)}`;
   $('created').textContent = when(link.created);
+  $('scans-row').hidden = !link.current.count;
+  if (link.current.count) loadScans(id);
   $('owner').textContent = link.owner;
   $('count').textContent = `(${link.history.length})`;
   $('timeline').replaceChildren(...link.history.map((state, i) => h('li', {},

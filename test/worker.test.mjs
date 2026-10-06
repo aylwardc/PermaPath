@@ -130,3 +130,51 @@ test('api: upload relay falls back to up.arweave.net on 402/5xx', async () => {
     stub.restore();
   }
 });
+
+// ---------- scan counts: the real ScanCounter on Node's SQLite ----------
+
+const { DatabaseSync } = await import('node:sqlite');
+const { ScanCounter } = await import('../worker/src/index.js');
+
+// A Durable Object namespace with one in-memory object, shaped like Cloudflare's.
+function fakeScans() {
+  const db = new DatabaseSync(':memory:');
+  const sql = {
+    exec: (query, ...params) => {
+      const stmt = db.prepare(query);
+      const rows = /^\s*select/i.test(query) ? stmt.all(...params) : (stmt.run(...params), []);
+      return { toArray: () => rows };
+    },
+  };
+  const counter = new ScanCounter({ storage: { sql } });
+  return { idFromName: (n) => n, get: () => ({ fetch: (u) => counter.fetch(new Request(u)) }) };
+}
+
+test('api: counts scans per link and reports them', async () => {
+  const env = { SCANS: fakeScans() };
+  const A = 'A'.repeat(43), B = 'B'.repeat(43), C = 'C'.repeat(43);
+  const scan = (l) => worker.fetch(new Request(`https://permapath.link/api/scan?l=${l}`, { method: 'POST' }), env);
+  for (const l of [A, A, A, B]) assert.equal((await scan(l)).status, 204);
+  assert.equal((await scan('short')).status, 400);
+  assert.equal((await worker.fetch(req(`/api/scan?l=${A}`), env)).status, 405, 'scans are POSTs (sendBeacon)');
+
+  let res = await worker.fetch(req(`/api/scans?l=${A},${B},${C}`), env);
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+  assert.deepEqual(await res.json(), { counts: { [A]: 3, [B]: 1, [C]: 0 } });
+  assert.equal((await worker.fetch(req('/api/scans?l=nope'), env)).status, 400);
+  assert.equal((await worker.fetch(req(`/api/scans?l=${Array(101).fill(A).map((x, i) => x.slice(0, 40) + String(i).padStart(3, '0')).join(',')}`), env)).status, 400);
+
+  res = await (await worker.fetch(req(`/api/scans/${A}`), env)).json();
+  assert.equal(res.total, 3);
+  assert.deepEqual(res.days, [{ day: new Date().toISOString().slice(0, 10), n: 3 }]);
+  assert.equal((await (await worker.fetch(req(`/api/scans/${C}`), env)).json()).total, 0);
+
+  res = await (await worker.fetch(req('/api/scans/summary'), env)).json();
+  assert.equal(res.scans, 4);
+  assert.equal(res.links, 2);
+  assert.equal(res.days[0].scans, 4);
+});
+
+test('api: scan endpoints say so when counting is not configured', async () => {
+  assert.equal((await worker.fetch(new Request(`https://permapath.link/api/scan?l=${'A'.repeat(43)}`, { method: 'POST' }))).status, 503);
+});

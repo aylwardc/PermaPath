@@ -47,7 +47,86 @@ async function relay(targets, request) {
   return last;
 }
 
-async function api(url, request) {
+// ---------- scan counts ----------
+// Resolver v3 pings POST /api/scan?l=<link> (fire-and-forget) when a link has
+// Count: true. Scans never wait for this, so counting can stop without any code
+// breaking. Only the link ID and the UTC day are stored: no IPs, no cookies.
+// Counts are public, like everything else about a link, and unauthenticated:
+// anyone could inflate one, so treat them as approximate.
+const LINK_ID = /^[A-Za-z0-9_-]{43}$/;
+const MAX_LINKS = 100;
+
+// One SQLite-backed Durable Object holds every link's daily counts.
+export class ScanCounter {
+  constructor(ctx) {
+    this.sql = ctx.storage.sql;
+    this.sql.exec('CREATE TABLE IF NOT EXISTS scans (link TEXT NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (link, day))');
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const links = url.searchParams.getAll('l');
+    switch (url.pathname) {
+      case '/hit':
+        this.sql.exec('INSERT INTO scans (link, day, n) VALUES (?, ?, 1) ON CONFLICT (link, day) DO UPDATE SET n = n + 1',
+          links[0], new Date().toISOString().slice(0, 10));
+        return new Response(null, { status: 204 });
+      case '/totals': {
+        const counts = Object.fromEntries(links.map((l) => [l, 0]));
+        const rows = this.sql.exec(`SELECT link, SUM(n) AS n FROM scans WHERE link IN (${links.map(() => '?').join(',')}) GROUP BY link`, ...links).toArray();
+        for (const r of rows) counts[r.link] = r.n;
+        return Response.json({ counts });
+      }
+      case '/daily': {
+        const days = this.sql.exec('SELECT day, n FROM scans WHERE link = ? ORDER BY day DESC LIMIT 400', links[0]).toArray();
+        const [{ total }] = this.sql.exec('SELECT COALESCE(SUM(n), 0) AS total FROM scans WHERE link = ?', links[0]).toArray();
+        return Response.json({ link: links[0], total, days });
+      }
+      case '/summary': {
+        const [all] = this.sql.exec('SELECT COALESCE(SUM(n), 0) AS scans, COUNT(DISTINCT link) AS links FROM scans').toArray();
+        const days = this.sql.exec('SELECT day, SUM(n) AS scans, COUNT(*) AS links FROM scans GROUP BY day ORDER BY day DESC LIMIT 90').toArray();
+        return Response.json({ ...all, days });
+      }
+      default:
+        return new Response('Not found', { status: 404 });
+    }
+  }
+}
+
+const PUBLIC_JSON = { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=30' };
+
+async function scans(url, request, env) {
+  if (!env?.SCANS) return new Response('Scan counting is not configured', { status: 503 });
+  const counter = env.SCANS.get(env.SCANS.idFromName('all'));
+  const ask = async (op, links) => {
+    const q = new URLSearchParams(links.map((l) => ['l', l]));
+    return counter.fetch(`https://scans/${op}?${q}`);
+  };
+  const json = async (res) => new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json', ...PUBLIC_JSON } });
+
+  if (url.pathname === '/api/scan') {
+    if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: { allow: 'POST' } });
+    const link = url.searchParams.get('l') || '';
+    if (!LINK_ID.test(link)) return new Response('Bad link ID', { status: 400 });
+    await ask('hit', [link]);
+    return new Response(null, { status: 204, headers: { 'access-control-allow-origin': '*' } });
+  }
+  if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: { allow: 'GET' } });
+  if (url.pathname === '/api/scans') {
+    const links = [...new Set((url.searchParams.get('l') || '').split(',').filter(Boolean))];
+    if (!links.length || links.length > MAX_LINKS || !links.every((l) => LINK_ID.test(l))) {
+      return new Response(`Pass ?l= with 1 to ${MAX_LINKS} comma-separated link IDs`, { status: 400 });
+    }
+    return json(await ask('totals', links));
+  }
+  if (url.pathname === '/api/scans/summary') return json(await ask('summary', []));
+  const one = url.pathname.match(/^\/api\/scans\/([A-Za-z0-9_-]{43})$/);
+  if (one) return json(await ask('daily', [one[1]]));
+  return new Response('Not found', { status: 404 });
+}
+
+async function api(url, request, env) {
+  if (url.pathname === '/api/scan' || url.pathname.startsWith('/api/scans')) return scans(url, request, env);
   const graphql = url.pathname.match(/^\/api\/graphql\/([a-z]+)$/);
   if (graphql && GRAPHQL_UPSTREAMS[graphql[1]] && request.method === 'POST') return relay(GRAPHQL_UPSTREAMS[graphql[1]], request);
   if (url.pathname === '/api/upload' && request.method === 'POST') return relay(UPLOAD_UPSTREAMS, request);
@@ -65,9 +144,9 @@ async function api(url, request) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith('/api/')) return api(url, request);
+    if (url.pathname.startsWith('/api/')) return api(url, request, env);
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, HEAD' } });
     }

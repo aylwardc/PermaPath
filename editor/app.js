@@ -372,9 +372,9 @@ function statusChip(link) {
 const when = (ms) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 // One line under the destination: scan count, end date, extra destinations.
-function extras(state, id) {
+function extras(state, id, { scans = true } = {}) {
   const parts = [];
-  if (state.count && scanCounts.has(id)) parts.push(`${scanCounts.get(id).toLocaleString()} scan${scanCounts.get(id) === 1 ? '' : 's'}`);
+  if (!scans) { /* shown in its own column */ } else if (state.count && scanCounts.has(id)) parts.push(`${scanCounts.get(id).toLocaleString()} scan${scanCounts.get(id) === 1 ? '' : 's'}`);
   else if (state.count) parts.push('Counting scans');
   if (state.offAt && !isOffNow(state)) parts.push(`Turns off ${when(state.offAt)}`);
   const n = state.routes?.length || 0;
@@ -406,7 +406,90 @@ function describe(state) {
   return state.kind === 'page' ? `Page · ${state.destination}` : state.destination;
 }
 
+// ---------- list or table ----------
+
+const VIEW_KEY = 'permapath:view';
+const SORT_KEY = 'permapath:sort';
+const stored = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } };
+let viewMode = stored(VIEW_KEY, 'list');
+let sort = stored(SORT_KEY, { by: 'created', desc: true });
+for (const r of document.querySelectorAll('input[name="links-view"]')) {
+  r.checked = r.value === viewMode;
+  r.addEventListener('change', () => {
+    viewMode = r.value;
+    try { localStorage.setItem(VIEW_KEY, JSON.stringify(viewMode)); } catch { /* fine */ }
+    render();
+  });
+}
+
+const STATUS_ORDER = { Publishing: 0, New: 1, Updating: 2, Live: 3, Off: 4, 'Not set up': 5 };
+const statusText = (link) => statusChip(link).textContent.replace(/ \(slow\)$/, '');
+const COLUMNS = [
+  { key: 'name', label: 'Name', value: (l) => (l.pending || l).name.toLowerCase() || '\uffff' },
+  { key: 'status', label: 'Status', value: (l) => STATUS_ORDER[statusText(l)] ?? 9 },
+  { key: 'dest', label: 'Goes to', value: (l) => describe(l.pending || l).toLowerCase() },
+  { key: 'scans', label: 'Scans', value: (l) => ((l.pending || l).count ? scanCounts.get(l.id) ?? 0 : -1), num: true },
+  { key: 'created', label: 'Created', value: (l) => l.created, num: true },
+  { key: 'changed', label: 'Last changed', value: (l) => (l.pending || l).seq, num: true },
+];
+
+function sortedLinks() {
+  const col = COLUMNS.find((c) => c.key === sort.by) || COLUMNS[4];
+  return [...links].sort((a, b) => {
+    const x = col.value(a), y = col.value(b);
+    return (x < y ? -1 : x > y ? 1 : 0) * (sort.desc ? -1 : 1);
+  });
+}
+
+function renderTable() {
+  const day = (ms) => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const head = h('tr', {}, h('th', {}, h('span', { class: 'pm-only' }, 'QR code')), ...COLUMNS.map((c) => h('th', { class: c.num ? 'num' : '' },
+    h('button', {
+      type: 'button',
+      'aria-sort': sort.by === c.key ? (sort.desc ? 'descending' : 'ascending') : false,
+      onclick: () => {
+        sort = { by: c.key, desc: sort.by === c.key ? !sort.desc : c.num }; // numbers start biggest first
+        try { localStorage.setItem(SORT_KEY, JSON.stringify(sort)); } catch { /* fine */ }
+        render();
+      },
+    }, c.label, sort.by === c.key ? (sort.desc ? ' ↓' : ' ↑') : ''))), h('th', {}, h('span', { class: 'pm-only' }, 'Actions')));
+  const rows = sortedLinks().map((link) => {
+    const view = link.pending || link;
+    const thumb = h('button', { class: 'qr-mini', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
+    thumb.innerHTML = qrSvg(linkUrl(link.id), 1);
+    const scans = view.count ? (scanCounts.get(link.id) ?? '…').toLocaleString() : '—';
+    return h('tr', { 'data-id': link.id },
+      h('td', {}, thumb),
+      h('td', { class: 'name' }, view.name || 'Untitled link', view.kind === 'locked' ? ' 🔒' : ''),
+      h('td', {}, statusChip(link)),
+      h('td', { class: 'dest-cell' }, describe(view), extras(view, link.id, { scans: false }) ? h('div', { class: 'muted small' }, extras(view, link.id, { scans: false })) : null),
+      h('td', { class: 'num' }, scans),
+      h('td', { class: 'num' }, day(link.created)),
+      h('td', { class: 'num' }, day(view.seq)),
+      h('td', { class: 'actions' },
+        h('button', { type: 'button', onclick: (e) => shareQr(view, e.currentTarget) }, shareLabel), ' ',
+        view.destination
+          ? [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'), ' ',
+            h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off')]
+          : h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination')),
+    );
+  });
+  $('links-table').replaceChildren(h('table', { class: 'links-table' }, h('thead', {}, head), h('tbody', {}, rows)));
+}
+
 function render() {
+  const table = viewMode === 'table' && links.length > 0;
+  $('links').hidden = table;
+  $('links-table').hidden = !table;
+  if (table) {
+    for (const link of links) {
+      const view = link.pending || link;
+      if (['page', 'contact', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
+      if (view.kind === 'locked' && view.destination) reveal(view.destination);
+    }
+    renderTable();
+    return;
+  }
   $('links').replaceChildren(...links.map((link) => {
     const view = link.pending || link;
     if (['page', 'contact', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);

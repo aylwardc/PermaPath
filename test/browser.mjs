@@ -659,6 +659,30 @@ if (which === 'all' || which === 'editor') {
     assert.equal(link.current.resolver, RESOLVER_TX, 'updates using v3 tags name the current resolver');
     assert.deepEqual(errors, []);
   });
+  await check('editor: table view sorts, remembers the choice, and keeps its actions', async (page) => {
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByText('No links yet').waitFor({ timeout: 30_000 });
+    for (const [name, dest] of [['Banana', 'example.com/b'], ['Apple', 'example.com/a'], ['Cherry', 'example.com/c']]) {
+      await page.locator('#create-dest').fill(dest);
+      await page.locator('#create-name').fill(name);
+      await page.getByRole('button', { name: 'Create link' }).click();
+      await page.locator('.link-item', { hasText: name }).waitFor();
+    }
+    assert.equal(await page.getByRole('link', { name: 'Printing tips' }).getAttribute('href'), 'print.html');
+    await page.locator('.view-toggle').getByText('Table').click();
+    const names = () => page.locator('.links-table td.name').allTextContents();
+    assert.deepEqual(await names(), ['Cherry', 'Apple', 'Banana'], 'newest first by default');
+    await page.locator('.links-table th button', { hasText: 'Name' }).click();
+    assert.deepEqual(await names(), ['Apple', 'Banana', 'Cherry']);
+    await page.locator('.links-table th button', { hasText: 'Name' }).click();
+    assert.deepEqual(await names(), ['Cherry', 'Banana', 'Apple']);
+    await page.reload();
+    await page.getByRole('button', { name: 'Create a key' }).waitFor(); // signed out by reload; the view choice is kept
+    assert.equal(await page.evaluate(() => localStorage.getItem('permapath:view')), '"table"');
+  });
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);
     await page.locator('#login-key').fill('definitely not a key');

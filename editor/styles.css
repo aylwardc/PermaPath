@@ -41,7 +41,7 @@ a { color: var(--accent); }
 .center { text-align: center; }
 .lede { color: var(--muted); margin: 0 0 1.5rem; }
 .narrow { max-width: 26rem; margin: 0 auto; padding: 2.5rem 16px 3rem; }
-.wide { max-width: 44rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
+.wide { max-width: 62rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
 label { display: block; margin-bottom: .9rem; font-size: .9rem; font-weight: 600; }
@@ -63,7 +63,7 @@ form > button.link { display: block; margin: .75rem auto 0; }
 
 .error { color: var(--error); font-size: .9rem; }
 .warn { color: var(--warn); }
-.landing { max-width: 36rem; margin: 0 auto; padding: 2.5rem 16px 4rem; }
+.landing { max-width: 46rem; margin: 0 auto; padding: 2.5rem 16px 4rem; }
 .landing .lede { font-size: 1.25rem; color: var(--fg); font-weight: 600; margin: 0 0 .15rem; }
 .landing .sublede { font-size: 1.05rem; color: var(--fg); opacity: .8; font-weight: 600; margin: 0 0 .5rem; }
 .info p.more-link { margin: .9rem 0 0; font-weight: 600; }
@@ -100,7 +100,7 @@ header .muted { flex: 1; font-family: ui-monospace, Menlo, monospace; font-size:
 .link-item .row { margin: .6rem 0 0; }
 .link-item .row button { flex: 0 0 auto; padding: .35rem .7rem; font-size: .85rem; }
 
-dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--fg); padding: 0; width: min(26rem, calc(100vw - 32px)); }
+dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--fg); padding: 0; width: min(30rem, calc(100vw - 32px)); }
 dialog::backdrop { background: rgb(0 0 0 / .45); }
 .dialog-body { padding: 1.25rem; }
 .qr-big { background: #fff; padding: 12px; border-radius: 8px; }
@@ -254,3 +254,33 @@ select { display: block; width: 100%; max-width: 100%; margin-top: .3rem; paddin
 .test-print { margin-top: 1.5rem; }
 .test-print .row { margin: .75rem 0; }
 .test-print .button-link { flex: 1 1 12rem; text-align: center; }
+
+/* Signed-in header: a link styled like its buttons. */
+a.header-btn { border: 1px solid var(--line); background: var(--card); color: var(--fg); text-decoration: none; white-space: nowrap; }
+@media (max-width: 480px) {
+  header { flex-wrap: wrap; gap: .4rem; }
+  header strong { margin-right: auto; }
+  header .muted { flex-basis: 100%; order: 5; }
+  .header-btn { font-size: .8rem; padding: .3rem .5rem; }
+}
+
+/* Your links: list or table. */
+.view-toggle { flex: none; margin-left: auto; }
+.view-toggle span { padding: .3rem .8rem; font-size: .85rem; }
+.list-head .row.tight { margin-left: 0; }
+/* position: relative keeps the hidden header labels inside the scroll box (else they widen the page). */
+.table-scroll { position: relative; overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.links-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.links-table th, .links-table td { text-align: left; vertical-align: middle; padding: .5rem .6rem; border-bottom: 1px solid var(--line); }
+.links-table tbody tr:last-child td { border-bottom: 0; }
+.links-table th { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+.links-table th button { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.links-table th button[aria-sort] { color: var(--fg); font-weight: 700; }
+.links-table td.dest-cell { max-width: 22rem; overflow-wrap: anywhere; }
+.links-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 480px) { .links-table td.dest-cell { min-width: 12rem; } }
+.links-table .qr-mini { width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); background: #fff; border-radius: 4px; overflow: hidden; display: block; }
+.links-table .qr-mini svg { display: block; width: 100%; height: 100%; }
+.links-table .actions { white-space: nowrap; }
+.links-table .actions button { padding: .25rem .55rem; font-size: .8rem; }
+.links-table .name { font-weight: 600; }

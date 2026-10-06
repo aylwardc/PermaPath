@@ -1,5 +1,8 @@
 // End-to-end browser checks against real Arweave (network + real uploads).
 // Run: node test/browser.mjs [resolver|editor|history]   (needs test/fixtures.json for resolver)
+//   Editor tests use an in-memory fake Arweave (test/fake-arweave.mjs): fast, free,
+//   no uploads. LIVE=1 runs them against the real network (uploads cost Turbo
+//   credits or wait for the free fallback); do that before a release.
 //   BROWSER=webkit node test/browser.mjs   → same tests on WebKit (Safari's engine)
 //   WORKER=1 node test/browser.mjs editor  → serve the editor through worker/src/index.js
 //   (real fetch to Arweave) instead of from the local editor/ folder.
@@ -9,6 +12,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium, webkit, devices } from 'playwright';
 import worker from '../worker/src/index.js';
+import { createFakeArweave } from './fake-arweave.mjs';
 import { fetchLinkHistory } from '../editor/links.js';
 import { RESOLVER_TX } from '../editor/config.js';
 
@@ -37,6 +41,14 @@ function serveWorker() {
 
 // BROWSER=webkit runs everything on Safari's engine (iOS browsers all use WebKit).
 const browser = await (process.env.BROWSER === 'webkit' ? webkit : chromium).launch();
+// While `fake` is set, every new browser context (and Node's fetch) talks to it instead of Arweave.
+let fake = null;
+const newContext = browser.newContext.bind(browser);
+browser.newContext = async (options) => {
+  const context = await newContext(options);
+  if (fake) await fake.install(context);
+  return context;
+};
 console.log(`(engine: ${process.env.BROWSER === 'webkit' ? 'webkit' : 'chromium'})`);
 let failures = 0;
 async function check(name, fn) {
@@ -241,6 +253,12 @@ async function openCreated(page, name) {
 }
 
 if (which === 'all' || which === 'editor') {
+  let restoreFetch = () => {};
+  if (!process.env.LIVE) {
+    fake = createFakeArweave();
+    restoreFetch = fake.installNode();
+    console.log('(editor tests use a fake Arweave; LIVE=1 for the real network)');
+  }
   const { server, base } = process.env.WORKER ? await serveWorker() : await serve(path.join(root, 'editor'));
   if (process.env.WORKER) console.log(`(editor served through the Worker at ${base})`);
   let keyText;
@@ -697,6 +715,9 @@ if (which === 'all' || which === 'editor') {
     }
   });
   server.close();
+  restoreFetch();
+  if (fake) console.log(`(fake Arweave: ${fake.items.size} uploads kept in memory; let through: ${[...fake.passedThrough].join(', ') || 'nothing'})`);
+  fake = null;
 }
 
 if (which === 'all' || which === 'history') {

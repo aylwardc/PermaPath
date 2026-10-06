@@ -6,8 +6,9 @@
     "test": "node --test test/*.test.mjs",
     "deploy:resolver": "node scripts/deploy.mjs resolver",
     "deploy:editor": "node scripts/deploy.mjs editor",
-    "deploy:worker": "cd worker && node --env-file=../.env ../node_modules/wrangler/bin/wrangler.js deploy",
-    "build:cli": "node scripts/build-cli.mjs"
+    "deploy:worker": "node scripts/check-editor.mjs && cd worker && node --env-file=../.env ../node_modules/wrangler/bin/wrangler.js deploy",
+    "build:cli": "node scripts/build-cli.mjs",
+    "check:editor": "node scripts/check-editor.mjs"
   },
   "devDependencies": {
     "@dha-team/arbundles": "^1.0.4",

@@ -196,10 +196,15 @@ if (which === 'all' || which === 'editor') {
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByText('No links yet').waitFor({ timeout: 30_000 });
 
+    await page.getByRole('button', { name: 'Your key' }).click();
     if (process.env.BROWSER !== 'webkit') {
       await page.getByRole('button', { name: 'Copy key' }).click();
       assert.equal(await page.evaluate(() => navigator.clipboard.readText()), keyText, 'Copy key copies the key');
     }
+    await page.getByRole('button', { name: 'Show recovery phrase' }).click();
+    const phrase = (await page.locator('#key-phrase li').allTextContents()).join(' ');
+    assert.equal(phrase.split(' ').length, 24, 'recovery phrase shown');
+    await page.locator('#key-dialog').getByRole('button', { name: 'Done' }).click();
     await page.locator('#create-dest').fill('example.com/?pp=editor-v0');
     await page.locator('#create-name').fill('Browser test');
     await page.getByRole('button', { name: 'Create link' }).click();
@@ -239,7 +244,14 @@ if (which === 'all' || which === 'editor') {
 
     await page.getByRole('button', { name: 'Sign out' }).click();
     await page.locator('#login-key').fill(keyText);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByText('Browser test').waitFor({ timeout: 30_000 });
+
+    // The recovery phrase signs in as the same key (first four letters are enough).
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('button', { name: 'Sign in with a recovery phrase instead' }).click();
+    await page.locator('#phrase-input').fill(phrase.split(' ').map((w) => w.slice(0, 4)).join(' '));
+    await page.locator('#phrase-form').getByRole('button', { name: 'Sign in' }).click();
     await page.getByText('Browser test').waitFor({ timeout: 30_000 });
     assert.deepEqual(errors, []);
   });
@@ -498,7 +510,7 @@ if (which === 'all' || which === 'editor') {
       await p.goto(base);
       assert.ok(await p.getByRole('heading', { name: 'Stop reprinting' }).isVisible(), 'landing text visible without JS');
       assert.equal(await p.locator('#login-form').isVisible(), true, 'sign-in form shows at once');
-      assert.equal(await p.getByRole('button', { name: 'Sign in' }).isDisabled(), true, 'but its buttons wait for JS');
+      assert.equal(await p.getByRole('button', { name: 'Sign in', exact: true }).isDisabled(), true, 'but its buttons wait for JS');
       for (const f of ['robots.txt', 'sitemap.xml', 'og.png', 'apple-touch-icon.png', 'compare.html', 'uses.html']) {
         assert.equal((await fetch(`${base}/${f}`)).status, 200, f);
       }
@@ -514,7 +526,7 @@ if (which === 'all' || which === 'editor') {
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);
     await page.locator('#login-key').fill('definitely not a key');
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.locator('#login-error').waitFor();
   });
   await check('editor: rejects a bad destination', async (page) => {

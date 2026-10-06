@@ -2,7 +2,7 @@
 // PermaPath command line. Run `node cli/permapath.mjs help`.
 import fs from 'node:fs';
 import {
-  generateKey, loadKey, createLink, createBatch, listLinks, getLink, updateLink, linkUrl, linkQrSvg, linkStatus,
+  generateKey, loadKey, recoveryPhrase, createLink, createBatch, listLinks, getLink, updateLink, linkUrl, linkQrSvg, linkStatus,
   lockLink, unlockLink, revealLink, createPage, editPage, readPage,
 } from '../lib/permapath.js';
 
@@ -11,6 +11,8 @@ const HELP = `PermaPath: QR codes you never have to reprint.
 Usage: permapath <command> [options]
 
   keygen                         Print a new key (store it somewhere safe)
+  phrase                         Print your key's 24-word recovery phrase (a paper
+                                 backup; works anywhere the key does)
   create <url> [--name N] [--password P]
                                  Create a link (optionally password protected);
                                  prints its ID and QR URL
@@ -29,7 +31,7 @@ Usage: permapath <command> [options]
   qr <link-id>                   Print the link's QR code as SVG
 
 Options:
-  --key-file <path>   Read the key from a file (default: PERMAPATH_KEY env var)
+  --key-file <path>   Read the key (or recovery phrase) from a file (default: PERMAPATH_KEY env var)
   --json              Machine-readable output
   --force             With set: replace a password-protected link's destination (removes the protection)
 
@@ -53,11 +55,12 @@ function parse(argv) {
   return { args, opts };
 }
 
-async function key(opts) {
+function keyText(opts) {
   const text = opts['key-file'] ? fs.readFileSync(opts['key-file'], 'utf8') : process.env.PERMAPATH_KEY;
   if (!text) throw new Error('No key: set PERMAPATH_KEY or pass --key-file <path>.');
-  return loadKey(text);
+  return text;
 }
+const key = (opts) => loadKey(keyText(opts));
 
 // A photo file as a data URL, checked by its first bytes.
 function photoDataUrl(file) {
@@ -86,6 +89,10 @@ async function main() {
     case 'keygen': {
       const k = generateKey();
       return out(k, { key: k });
+    }
+    case 'phrase': {
+      const phrase = await recoveryPhrase(keyText(opts));
+      return out(phrase, { phrase });
     }
     case 'create': {
       const r = await createLink(await key(opts), { destination: need(rest[0], 'URL'), name: opts.name || '', password: opts.password || '' });

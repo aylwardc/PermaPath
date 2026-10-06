@@ -58,7 +58,7 @@ export function optionsFields(details) {
   const count = h('input', { type: 'checkbox', role: 'switch', class: 'switch-input', id: id('count') });
   const countBox = h('div', { class: 'opt' },
     h('label', { class: 'switch' }, count, ' Count scans'),
-    h('p', { class: 'muted small' }, 'See how many times the code is scanned. Only a daily total is kept, nothing about who scanned. Anyone can see the count.'));
+    h('p', { class: 'muted small' }, 'See how many times the code is scanned. Only a daily total is kept, nothing about who scanned.'));
 
   // Turn off on a date, with a message
   const offOn = h('input', { type: 'checkbox', role: 'switch', class: 'switch-input', id: id('off-on') });
@@ -76,15 +76,15 @@ export function optionsFields(details) {
   const timeList = h('div', { class: 'time-rules' });
   const zone = h('select', { id: id('tz') });
   const zoneBox = h('label', { class: 'zone' }, 'Time zone for these days and times', zone,
-    h('span', { class: 'muted small hint' }, 'Rules follow this time zone wherever people scan from. It starts as your device’s time zone; change it if the place is somewhere else. The first matching rule wins.'));
+    h('span', { class: 'muted small hint' }, 'Rules follow this time zone no matter where people scan from. It defaults to your device’s current time zone.'));
   const addTime = h('button', { type: 'button', class: 'link', onclick: () => { addTimeRule({}); updateNote(); } }, 'Add a different link for certain days or times');
   const keptNote = h('p', { class: 'muted small', hidden: true });
   const lockedNote = h('p', { class: 'muted small', hidden: true }, 'Different links by device or time aren’t available with Password protect, because they would be public.');
   const routesBox = h('div', { class: 'opt routes' },
-    h('p', { class: 'opt-title' }, 'Send some people somewhere else'),
-    h('p', { class: 'muted small' }, 'Everyone else goes to the main destination. These addresses are public.'),
-    h('label', {}, 'iPhone and iPad', ios),
-    h('label', {}, 'Android', android),
+    h('p', { class: 'opt-title' }, 'Advanced routing'),
+    h('p', { class: 'muted small' }, 'Point to a different destination based on device type or day and time. Everyone goes to the main destination ', h('strong', {}, 'unless'), ' one of the following is true:'),
+    h('label', {}, 'iPhone and iPad users', ios),
+    h('label', {}, 'Android users', android),
     timeList, zoneBox, addTime, keptNote);
   const error = h('p', { class: 'error', hidden: true });
 

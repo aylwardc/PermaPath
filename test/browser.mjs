@@ -446,7 +446,7 @@ if (which === 'all' || which === 'editor') {
     assert.match(csv, /Import B,[^\n]*,,not set up,/);
     await page.getByRole('button', { name: 'Close' }).click();
     await page.locator('.link-item', { hasText: 'Original' }).getByText('https://example.com/?pp=imp-updated').waitFor({ timeout: 30_000 });
-    await page.locator('.link-item', { hasText: 'Import B' }).getByText('Not set up').waitFor();
+    await page.locator('.link-item', { hasText: 'Import B' }).getByText('Not set up').waitFor({ timeout: 90_000 });
     assert.deepEqual(errors, []);
   });
   await check('editor: password protect a link, unlock it, edit keeping the password, unlock', async (page) => {

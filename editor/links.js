@@ -244,6 +244,17 @@ export function linksToCsv(links, linkUrl) {
 // One link's verified state and full change history, from all endpoints.
 // Returns null if no endpoint knows a valid PermaPath link with this ID.
 // history: newest first, each { id, seq, destination, name, disabled, resolver, confirmedAt }.
+// Whether a scan would find this link yet: the resolver starts by looking the
+// link up by ID, and a search service can answer the editor's search by owner
+// before it answers that (seen 2026-10-06: "Live" in the editor, "Link not
+// found" when scanned). True once any service returns a valid copy by ID.
+export async function findableById(linkId, endpoints = GRAPHQL_ENDPOINTS) {
+  const results = await Promise.allSettled(endpoints.map((endpoint) =>
+    gqlAll(endpoint, { params: '$ids: [ID!]', args: 'ids: $ids' }, { ids: [linkId] })));
+  const copies = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])).filter((n) => n.id === linkId);
+  return (await validCopies(copies)).length > 0;
+}
+
 export async function fetchLinkHistory(linkId, endpoints = GRAPHQL_ENDPOINTS) {
   const results = await Promise.allSettled(endpoints.map(async (endpoint) => {
     const [genesis] = await gqlAll(endpoint, { params: '$ids: [ID!]', args: 'ids: $ids' }, { ids: [linkId] });

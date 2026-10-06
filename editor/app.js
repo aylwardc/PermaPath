@@ -1,6 +1,6 @@
 import { qrMatrix, qrSvg } from './qr.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
-import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow } from './links.js';
+import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
 import { optionsFields } from './options.js';
 import { RESOLVER_BASE } from './config.js';
 import { buildPageHtml, parsePageHtml, pageBytes, compressImage, buildVcard, PAGE_MAX_BYTES, LOCKED_PAGE_MAX, CONTACT_FIELDS } from './page.js';
@@ -266,6 +266,12 @@ async function refresh() {
     $('list-status').textContent = err.message;
     fetched = null;
   }
+  // A new link stays "New" until a scan would find it, not just this list.
+  if (fetched) {
+    const created = readPending().filter((p) => p.seq === p.created && fetched.some((l) => l.id === p.id));
+    const notYet = new Set((await Promise.all(created.map(async (p) => ((await findableById(p.id).catch(() => false)) ? null : p.id)))).filter(Boolean));
+    if (notYet.size) fetched = fetched.filter((l) => !notYet.has(l.id));
+  }
   const previous = links.filter((l) => !l.unindexed).map(({ pending, ...l }) => l);
   const { links: merged, outstanding } = overlayPending(fetched || previous, readPending());
   if (fetched) writePending(outstanding);
@@ -273,7 +279,9 @@ async function refresh() {
   render();
   if (fetched) loadScanCounts();
   if (fetched) $('list-status').textContent = links.length ? '' : 'No links yet. Create one above.';
-  if (outstanding.length) pollTimer = setTimeout(refresh, 15_000);
+  // Check often right after a change (most go live within seconds), then every 15s.
+  const recent = outstanding.some((p) => Date.now() - p.postedAt < 2 * 60_000);
+  if (outstanding.length) pollTimer = setTimeout(refresh, recent ? 5_000 : 15_000);
 }
 
 // Feedback while it checks Arweave, then a brief "Up to date".

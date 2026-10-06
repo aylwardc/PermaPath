@@ -1,6 +1,6 @@
 # Roadmap
 
-Ideas discussed on 2026-10-03, not yet built.
+Ideas discussed since 2026-10-03. Shipped work is listed first; everything after it is not built yet.
 
 ## Shipped 2026-10-05
 
@@ -8,7 +8,22 @@ Ideas discussed on 2026-10-03, not yet built.
 - **Resolver v3:** scan counts (on by default for new links, public daily totals per link, kept by the Worker), turning off on a date with a message, and different destinations by device (iPhone/iPad, Android) or by days, times and dates. Older codes get these by forwarding to v3 (`Resolver` tag) when their owner uses one.
 - **Your own stats:** `https://permapath.link/api/scans/summary` (total scans and links counted, per day).
 
+## Shipped 2026-10-06
+
+- **Contact cards:** a page with Call / Text / Email / Website / Directions and a Save contact vCard.
+- **Printing tips page** with exact-size PDF test sheets (Letter and A4).
+- **Your links as a table** with sortable columns; wider desktop layout; Printing tips in the signed-in header.
+- **"Live" means scannable:** new links stay "New" until a scan would find them.
+- **Fake Arweave for the editor tests** (LIVE=1 for real uploads); deploys pay with the deploy key's Turbo credits and report the cost.
+
 ## Editor-only (no resolver change)
+
+- **Key handoff** (replaces "key per batch"): create a set of links with a new key and print a sheet with that key and its recovery phrase for whoever takes them over. Full control passes immediately; the creator still has the key too. About half a day. A real ownership transfer needs a new resolver (below).
+- **Event page template:** time and place with an Add to calendar (.ics) button, like contact cards. About half a day.
+- **"Message me" template:** a big button that opens a text or email with the message filled in.
+- **Slow-upload notice:** when Turbo refuses an upload and it falls back to up.arweave.net, say "this change may take a few minutes". A couple of hours.
+- **Private scan counts:** only the owner sees counts (the editor signs the request with the key; the history page stops showing them). About half a day. Not urgent: counts need the link ID and show nothing about who scanned.
+- **Owner stats for Chris:** links created, updates and active keys over time, from public Arweave records (a script or weekly email). A couple of hours.
 
 - **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
 - **QR design options:** frame text ("Scan for menu"), colors, a center logo with high error correction, and an outdoor/permanent toggle.
@@ -22,6 +37,8 @@ Ideas discussed on 2026-10-03, not yet built.
   - Optional: also publish as an npm package (`npx permapath …`).
   - Optionally add a *local* MCP server (`npx permapath-mcp`) for Claude Desktop/Code and Cursor, with the key kept on the user's machine. Avoid a remote MCP connector that receives keys; read-only remote tools (link history) are fine.
   - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
+- **Ownership transfer:** the owner signs "this link now belongs to <public ID>"; the resolver follows the new owner from then on. Transfers must be ordered by when Arweave confirmed them, not by the owner-written Seq, or a previous owner could backdate a transfer back to themselves; so a transfer takes effect after confirmation (up to about an hour). About 2–3 days with the editor screen.
+- **Phone, text and email destinations** (`tel:`, `sms:`, `mailto:` on a short allow list). Browsers ask before opening another app, so the resolver would show a button to tap. Contact cards already cover most of this.
 - **Smart routing:** device, schedule and auto-off shipped in v3. Not done: by language.
 - **Last-known destination:** if every lookup fails, send a repeat visitor to the destination their phone saw last time.
 

@@ -34,7 +34,7 @@ Spare sticker,
 ### Important
 
 - Destinations, names and every past destination are **public and permanent** unless a link is password protected. Password protection can be set in the web app (Edit → Password protect) or with the command-line tool below, but not by CSV, so for private destinations in an import, tell the user to turn it on afterwards. Don't put URLs that grant access just by being known (for example "anyone with the link" shares, meeting links with passcodes, or URLs with tokens) in unprotected links.
-- PermaPath doesn't track scans.
+- PermaPath never tracks who scans. New links count scans per day (public totals only); `scans LINK_ID` shows them.
 - Changes usually go live within seconds, occasionally up to 20 minutes.
 - Simple hosted pages (title, text, photo) can be written in the web app or with the command-line tool below, but not by CSV.
 
@@ -64,6 +64,10 @@ node permapath.mjs unlock LINK_ID                                         # remo
 node permapath.mjs list --json                                            # the key's links
 node permapath.mjs show LINK_ID                                           # history, no key needed
 node permapath.mjs qr LINK_ID > code.svg                                  # QR code (SVG, print-ready)
+node permapath.mjs scans LINK_ID                                          # scan count (new links count by default)
+node permapath.mjs off-at LINK_ID 2026-12-31T23:00-05:00 --message "This sale has ended."   # turn off on a date
+node permapath.mjs rules LINK_ID '[{"os":"ios","to":"https://apps.apple.com/..."},{"os":"android","to":"https://play.google.com/..."}]'
+node permapath.mjs rules LINK_ID '[{"days":"12345","from":"11:00","until":"15:00","to":"https://example.com/lunch"}]' --tz America/New_York
 node permapath.mjs help
 ```
 
@@ -75,6 +79,7 @@ Notes:
 - `show LINK_ID` with the owner's key also prints what a locked link unlocks to, and a page's title and text.
 - Pages: blank lines make paragraphs; web addresses become links. A photo must be JPEG, PNG or WebP and small enough to fit (whole page up to 95 KB, about 66 KB if password protected). Resize photos yourself first; the tool doesn't, and it says how much smaller to make them. A new page takes a few minutes to appear on Arweave; `edit-page` on a live link waits for it.
 - The user sees the same links at https://permapath.link when they sign in with that key.
+- Rules (`rules`) send some people elsewhere: first match wins, everyone else gets the main destination. They're public, so they can't be used on password-protected links. `none` removes them.
 
 ## More
 

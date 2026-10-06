@@ -16,6 +16,7 @@ const update = (key, id, dest, seq, extra = [], version) => post(key, [
   { name: 'Type', value: 'update' }, { name: 'Link', value: id }, { name: 'Destination', value: dest }, { name: 'Seq', value: String(seq) }, ...extra,
 ], version);
 export const HANDOFF_TX = 'H'.repeat(43);
+export const SELF_TX = 'S'.repeat(43);
 
 const owner = await loadKey(generateKeyText());
 const attacker = await loadKey(generateKeyText());
@@ -34,6 +35,16 @@ const future = await link(owner, 'https://example.com/?pp=future-v1', t + 7);
 await update(owner, future, 'https://example.org/?pp=future-v2', t + 8, [], '2');
 // Old-style record with a body: the resolver must download it to check the signature.
 const withBody = await link(owner, 'https://example.com/?pp=with-body', t + 9, '{"old":"style"}');
-const fixtures = { createdAt: new Date().toISOString(), updated, disabled, plain, handoff, future, withBody };
+// v3: routing by device, an end date with a message, scan counting, and a
+// Resolver tag naming the page itself (served at /SELF_TX in the test).
+const v3link = (dest, seq, extra) => post(owner, [
+  { name: 'Type', value: 'link' }, { name: 'Destination', value: dest }, { name: 'Seq', value: String(seq) }, ...extra,
+], '1');
+const routed = await v3link('https://example.com/?pp=default', t + 10, [{ name: 'Routes', value: JSON.stringify([{ os: 'ios', to: 'https://example.com/?pp=ios' }]) }]);
+const ended = await v3link('https://example.com/?pp=ended', t + 11, [{ name: 'Off-At', value: String(t) }, { name: 'Message', value: 'This event has ended. See you next year!' }]);
+const counted = await v3link('https://example.com/?pp=counted', t + 12, [{ name: 'Count', value: 'true' }]);
+const self = await link(owner, 'https://example.com/?pp=self-v0', t + 13);
+await update(owner, self, 'https://example.com/?pp=self-v1', t + 14, [{ name: 'Resolver', value: SELF_TX }]);
+const fixtures = { createdAt: new Date().toISOString(), updated, disabled, plain, handoff, future, withBody, routed, ended, counted, self };
 fs.writeFileSync(new URL('./fixtures.json', import.meta.url), JSON.stringify(fixtures, null, 2) + '\n');
 console.log(fixtures);

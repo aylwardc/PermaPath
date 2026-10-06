@@ -4,8 +4,20 @@
 name = "permapath-gateway"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
+# Only served on permapath.link (the account needs a workers.dev subdomain for
+# Durable Objects, but this Worker doesn't use it).
+workers_dev = false
 
 routes = [
   { pattern = "permapath.link/*", zone_name = "permapath.link" },
   { pattern = "permapath.link", zone_name = "permapath.link" }
 ]
+
+# Scan counts (see ScanCounter in src/index.js): one SQLite-backed Durable Object.
+[[durable_objects.bindings]]
+name = "SCANS"
+class_name = "ScanCounter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ScanCounter"]

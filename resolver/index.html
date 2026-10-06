@@ -22,7 +22,24 @@
   endpoints in priority order.
 
   Upgrades: if the winning record has Resolver=<TX>, this page forwards the
-  scan to that newer resolver (same gateway, same ?l=), at most 3 hops.
+  scan to that newer resolver (same gateway, same ?l=), at most 3 hops. A
+  Resolver naming this page itself is ignored, so owners of older codes can
+  point them here to get the features below.
+
+  Since v3 (all optional, all signed like the rest of the record):
+    Off-At    Unix ms. From then on the link is turned off.
+    Message   Shown when the link is off (plain text).
+    Routes    JSON list of rules; the first that matches picks the destination,
+              otherwise Destination. A rule is { "to": URL } plus any of:
+                "os":     "ios" | "android"
+                "after":  Unix ms (inclusive)     "before": Unix ms (exclusive)
+                "days":   "12345" (0 = Sunday)    "from"/"until": "HH:MM"
+              A window past midnight (22:00-02:00) belongs to the day it starts.
+              Days and times use the Time-Zone tag (IANA name, e.g.
+              America/New_York), or the phone's own clock without one. A rule
+              with a condition this page doesn't know is skipped.
+    Count     "true": after the lookup, tell permapath.link/api/scan that the
+              link was scanned (link ID only). Never delays the redirect.
 -->
 <style>
   :root { --bg: #ffffff; --fg: #1a1a1a; --muted: #6b6b6b; --accent: #0b6bcb; }
@@ -46,6 +63,82 @@
   <noscript><p>This link needs JavaScript to open.</p></noscript>
 </main>
 <script>
+// Routing rules (v3). Kept separate so tests can run exactly this code.
+var PP_ROUTING = (function () {
+  var KNOWN = { to: 1, os: 1, after: 1, before: 1, days: 1, from: 1, until: 1 };
+
+  function deviceOs(nav) {
+    var ua = nav.userAgent || '';
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && nav.maxTouchPoints > 1)) return 'ios'; // iPadOS reports a Mac
+    if (/Android/.test(ua)) return 'android';
+    return 'other';
+  }
+
+  // Day of week (0 = Sunday) and minutes since midnight in a time zone.
+  function clock(now, tz) {
+    if (tz) {
+      try {
+        var parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+          .formatToParts(new Date(now));
+        var p = {};
+        parts.forEach(function (x) { p[x.type] = x.value; });
+        var day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday);
+        if (day >= 0) return { day: day, min: (Number(p.hour) % 24) * 60 + Number(p.minute) };
+      } catch (e) { /* unknown zone: use the phone's clock */ }
+    }
+    var d = new Date(now);
+    return { day: d.getDay(), min: d.getHours() * 60 + d.getMinutes() };
+  }
+
+  function minutes(hhmm) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
+    return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : null;
+  }
+
+  function matches(rule, ctx) {
+    for (var k in rule) if (Object.prototype.hasOwnProperty.call(rule, k) && !KNOWN[k]) return false;
+    if (rule.os && rule.os !== ctx.os) return false;
+    if (rule.after != null && !(ctx.now >= Number(rule.after))) return false;
+    if (rule.before != null && !(ctx.now < Number(rule.before))) return false;
+    if (rule.days != null || rule.from != null || rule.until != null) {
+      var c = clock(ctx.now, ctx.tz);
+      var day = c.day;
+      if (rule.from != null || rule.until != null) {
+        var from = rule.from == null ? 0 : minutes(rule.from);
+        var until = rule.until == null ? 24 * 60 : minutes(rule.until);
+        if (from == null || until == null) return false;
+        // from > until spans midnight (22:00-02:00): after midnight it still
+        // counts as the day it started. from == until is all day.
+        var inside = from < until ? (c.min >= from && c.min < until) : from > until ? (c.min >= from || c.min < until) : true;
+        if (!inside) return false;
+        if (from > until && c.min < until) day = (day + 6) % 7;
+      }
+      if (rule.days != null && String(rule.days).indexOf(String(day)) < 0) return false;
+    }
+    return true;
+  }
+
+  // The destination for this scan: the first matching rule's "to", else Destination.
+  function pick(record, ctx) {
+    var rules;
+    try { rules = JSON.parse(record.Routes || '[]'); } catch (e) { rules = []; }
+    if (Object.prototype.toString.call(rules) !== '[object Array]') rules = [];
+    ctx = { now: ctx.now, os: ctx.os, tz: record['Time-Zone'] || '' };
+    for (var i = 0; i < rules.length; i++) {
+      var r = rules[i];
+      if (r && typeof r === 'object' && typeof r.to === 'string' && matches(r, ctx)) return r.to;
+    }
+    return record.Destination;
+  }
+
+  function isOff(record, now) {
+    return record.Disabled === 'true' || (/^\d{1,16}$/.test(record['Off-At'] || '') && now >= Number(record['Off-At']));
+  }
+
+  return { deviceOs: deviceOs, clock: clock, pick: pick, isOff: isOff };
+})();
+</script>
+<script>
 (function () {
   var APP = 'PermaPath';
   var VERSION = '1';
@@ -56,6 +149,7 @@
     'https://frostor.xyz/graphql'
   ];
   var MAX_HOPS = 3;
+  var SCAN_URL = 'https://permapath.link/api/scan';
   var TIMEOUT_MS = 10000;
   var GRACE_MS = 1500; // after the first valid answer, wait this long for a fresher one
 
@@ -68,6 +162,9 @@
     ENDPOINTS.unshift(gateway + '/graphql');
   }
   var DATA_GATEWAY = local || !/^https?:$/.test(location.protocol) ? 'https://arweave.net' : gateway;
+  // This page's own TX (gateways serve it at /<TX>), so a Resolver tag naming
+  // this page doesn't forward to itself.
+  var SELF = (/^\/([A-Za-z0-9_-]{43})(\/|$)/.exec(location.pathname) || [])[1] || '';
 
   function show(title, detail, retry) {
     document.getElementById('title').textContent = title;
@@ -263,12 +360,21 @@
     } catch (e) { return null; }
   }
 
+  // Fire-and-forget: sendBeacon survives the redirect and never delays it.
+  function countScan() {
+    var url = SCAN_URL + '?l=' + encodeURIComponent(linkId);
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(url)) return;
+      fetch(url, { method: 'POST', mode: 'no-cors', keepalive: true }).catch(function () {});
+    } catch (e) { /* counting is optional */ }
+  }
+
   function finish(record) {
     if (!record) {
       show('Link not found', 'If this link was just created, it can take a few minutes to appear. Try again shortly.', true);
       return;
     }
-    if (record.Resolver) {
+    if (record.Resolver && record.Resolver !== SELF) {
       if (!/^[A-Za-z0-9_-]{43}$/.test(record.Resolver) || hops >= MAX_HOPS) {
         show('This link can’t be opened', 'It points to an upgraded resolver that couldn’t be reached.');
         return;
@@ -277,11 +383,13 @@
       location.replace(gateway + '/' + record.Resolver + '?l=' + encodeURIComponent(linkId) + '&h=' + (hops + 1));
       return;
     }
-    if (record.Disabled === 'true') {
-      show('This link is turned off', 'Its owner has paused it for now.');
+    if (record.Count === 'true') countScan();
+    var now = Date.now();
+    if (PP_ROUTING.isOff(record, now)) {
+      show('This link is turned off', record.Message || 'Its owner has paused it for now.');
       return;
     }
-    var dest = safeUrl(record.Destination);
+    var dest = safeUrl(PP_ROUTING.pick(record, { now: now, os: PP_ROUTING.deviceOs(navigator) })) || safeUrl(record.Destination);
     if (!dest) {
       show('This link has an invalid destination');
       return;

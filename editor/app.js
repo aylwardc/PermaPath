@@ -1,6 +1,7 @@
 import { qrMatrix, qrSvg } from './qr.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
-import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport } from './links.js';
+import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow } from './links.js';
+import { optionsFields } from './options.js';
 import { RESOLVER_BASE } from './config.js';
 import { buildPageHtml, parsePageHtml, pageBytes, compressImage, PAGE_MAX_BYTES, LOCKED_PAGE_MAX } from './page.js';
 import { buildLockedHtml, parseLockedHtml, openLocked, passwordAdvice, suggestPassphrase } from './lock.js';
@@ -270,6 +271,7 @@ async function refresh() {
   if (fetched) writePending(outstanding);
   links = merged;
   render();
+  if (fetched) loadScanCounts();
   if (fetched) $('list-status').textContent = links.length ? '' : 'No links yet. Create one above.';
   if (outstanding.length) pollTimer = setTimeout(refresh, 15_000);
 }
@@ -345,9 +347,38 @@ function statusChip(link) {
   return status === 'off' ? h('span', { class: 'chip off' }, 'Off') : h('span', { class: 'chip live' }, 'Live');
 }
 
+const when = (ms) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+// One line under the destination: scan count, end date, extra destinations.
+function extras(state, id) {
+  const parts = [];
+  if (state.count && scanCounts.has(id)) parts.push(`${scanCounts.get(id).toLocaleString()} scan${scanCounts.get(id) === 1 ? '' : 's'}`);
+  else if (state.count) parts.push('Counting scans');
+  if (state.offAt && !isOffNow(state)) parts.push(`Turns off ${when(state.offAt)}`);
+  const n = state.routes?.length || 0;
+  if (n && !isOffNow(state)) parts.push(`${n} other destination${n === 1 ? '' : 's'} by device or time`);
+  return parts.join(' · ');
+}
+
+// ---------- scan counts (permapath.link/api/scans; public) ----------
+
+const SCANS_API = 'https://permapath.link/api/scans';
+const scanCounts = new Map();
+async function loadScanCounts() {
+  const ids = links.filter((l) => (l.pending || l).count && !l.unindexed).map((l) => l.id);
+  try {
+    for (let i = 0; i < ids.length; i += 100) {
+      const res = await fetch(`${SCANS_API}?l=${ids.slice(i, i + 100).join(',')}`, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) return;
+      for (const [id, n] of Object.entries((await res.json()).counts)) scanCounts.set(id, n);
+    }
+  } catch { return; /* counts are a nice-to-have */ }
+  render();
+}
+
 function describe(state) {
   if (!state.destination) return 'No destination yet';
-  if (state.disabled) return 'Turned off';
+  if (isOffNow(state)) return state.disabled ? 'Turned off' : `Turned off automatically ${when(state.offAt)}`;
   if (state.kind === 'locked') return revealed.get(state.destination) || 'Password protected';
   return state.kind === 'page' ? `Page · ${state.destination}` : state.destination;
 }
@@ -373,6 +404,8 @@ function render() {
     } else {
       dest.push(h('p', { class: 'dest' }, describe(view)));
     }
+    const extra = extras(view, link.id);
+    if (extra) dest.push(h('p', { class: 'muted small extras' }, extra));
     // Tapping anywhere on the card (except its buttons) opens the QR code.
     const openFromCard = (e) => { if (!e.target.closest('button, a, input')) openQr(view); };
     return h('li', { class: 'card link-item clickable', onclick: openFromCard, title: 'Show QR code', 'data-id': link.id },
@@ -385,7 +418,7 @@ function render() {
           view.destination
             ? [
               h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'),
-              h('button', { type: 'button', onclick: (e) => setDisabled(link, !view.disabled, e.currentTarget) }, view.disabled ? 'Turn on' : 'Turn off'),
+              h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off'),
             ]
             : h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'),
         ),
@@ -574,15 +607,17 @@ function destinationFields(prefix) {
 
 const createFields = destinationFields('create');
 const editFields = destinationFields('edit');
+const createOptions = optionsFields($('create-options'));
+const editOptions = optionsFields($('edit-options'));
+const NEW_LINK_OPTIONS = { count: true }; // scan counting is on unless turned off
+createOptions.set(NEW_LINK_OPTIONS);
+$('create-lock').addEventListener('change', () => createOptions.setLocked($('create-lock').checked));
+$('edit-lock').addEventListener('change', () => editOptions.setLocked($('edit-lock').checked));
 
 const nextSeq = (link) => Math.max(Date.now(), (link.pending?.seq ?? link.seq) + 1);
 
 async function saveUpdate(link, changes) {
-  const current = link.pending || link;
-  const state = {
-    id: link.id, created: link.created, name: current.name, destination: current.destination,
-    disabled: current.disabled, resolver: current.resolver, kind: current.kind, ...changes, seq: nextSeq(link),
-  };
+  const state = { id: link.id, created: link.created, ...carry(link.pending || link), ...changes, seq: nextSeq(link) };
   await publish(updateTags({ linkId: link.id, ...state }));
   addPending(state);
   await refresh();
@@ -594,15 +629,17 @@ $('create-form').addEventListener('submit', async (e) => {
   const button = e.submitter || e.target.querySelector('button[type=submit]');
   await busy(button, async () => {
     try {
+      const options = createOptions.read({ locked: createFields.locked() });
       const { destination, kind, title, published } = await publishDestination(createFields);
       const name = $('create-name').value.trim() || title || '';
       const seq = Date.now();
-      const id = await publish(linkTags({ destination, name, kind, seq }));
-      const state = { id, created: seq, seq, destination, name, kind, disabled: false };
+      const id = await publish(linkTags({ destination, name, kind, seq, ...options }));
+      const state = { id, created: seq, seq, destination, name, kind, disabled: false, ...options };
       addPending(state);
       if (published) trackPublishing(destination);
       e.target.reset();
       createFields.reset();
+      createOptions.set(NEW_LINK_OPTIONS);
       // Show the new link right away (no pop-up); tap it for the QR code.
       links = overlayPending(links.filter((l) => !l.unindexed).map(({ pending, ...l }) => l), readPending()).links;
       render();
@@ -622,6 +659,7 @@ async function openEdit(link) {
   $('edit-title').textContent = view.destination ? 'Edit link' : 'Set destination';
   $('edit-progress').textContent = '';
   showError($('edit-error'), null);
+  editOptions.set(carry(view), { locked: view.kind === 'locked' });
   $('edit-dialog').showModal();
   if (view.kind === 'locked') {
     editFields.setLocked(true);
@@ -665,6 +703,7 @@ $('edit-form').addEventListener('submit', async (e) => {
     try {
       const link = editing;
       const view = link.pending || link;
+      const options = editOptions.read({ locked: editFields.locked() });
       const { destination, kind, title, published } = await publishDestination(editFields, (t) => { $('edit-progress').textContent = t; });
       const name = $('edit-name').value.trim() || title || '';
       if (published) {
@@ -681,6 +720,7 @@ $('edit-form').addEventListener('submit', async (e) => {
         name,
         kind,
         disabled: view.destination ? view.disabled : false, // setting a first destination turns the link on
+        ...options,
       });
       $('edit-progress').textContent = '';
       $('edit-dialog').close();
@@ -693,7 +733,9 @@ $('edit-form').addEventListener('submit', async (e) => {
 async function setDisabled(link, disabled, button) {
   await busy(button, async () => {
     try {
-      await saveUpdate(link, { disabled });
+      const view = link.pending || link;
+      // Turning on a link that switched itself off also clears its end date.
+      await saveUpdate(link, disabled ? { disabled } : { disabled, ...(view.offAt && view.offAt <= Date.now() ? { offAt: 0 } : {}) });
     } catch (err) {
       $('list-status').textContent = err.message;
     }
@@ -734,8 +776,8 @@ $('batch-form').addEventListener('submit', async (e) => {
       const name = prefix ? `${prefix} ${String(i + 1).padStart(width, '0')}` : '';
       const seq = base + (count - 1 - i);
       try {
-        const id = await publish(linkTags({ name, seq }));
-        const state = { id, created: seq, seq, destination: '', name, disabled: true };
+        const id = await publish(linkTags({ name, seq, count: true }));
+        const state = { id, created: seq, seq, destination: '', name, disabled: true, count: true };
         addPending(state);
         made.push({ i, state });
       } catch {
@@ -820,17 +862,13 @@ $('import-form').addEventListener('submit', async (e) => {
       try {
         if (job.action === 'create') {
           const seq = base + (jobs.length - 1 - i); // first row lists first
-          const id = await publish(linkTags({ destination: job.destination, name: job.name, seq }));
-          const state = { id, created: seq, seq, destination: job.destination, name: job.name, kind: '', disabled: !job.destination };
+          const id = await publish(linkTags({ destination: job.destination, name: job.name, seq, count: true }));
+          const state = { id, created: seq, seq, destination: job.destination, name: job.name, kind: '', disabled: !job.destination, count: true };
           addPending(state);
           done.push({ i, state });
         } else {
           const link = links.find((l) => l.id === job.linkId);
-          const current = link.pending || link;
-          const state = {
-            id: link.id, created: link.created, name: current.name, destination: current.destination,
-            disabled: current.disabled, resolver: current.resolver, kind: current.kind, ...job.changes, seq: nextSeq(link),
-          };
+          const state = { id: link.id, created: link.created, ...carry(link.pending || link), ...job.changes, seq: nextSeq(link) };
           await publish(updateTags({ linkId: link.id, ...state }));
           addPending(state);
           done.push({ i, state });

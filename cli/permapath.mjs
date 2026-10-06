@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import {
   generateKey, loadKey, recoveryPhrase, createLink, createBatch, listLinks, getLink, updateLink, linkUrl, linkQrSvg, linkStatus,
-  lockLink, unlockLink, revealLink, createPage, editPage, readPage,
+  lockLink, unlockLink, revealLink, createPage, editPage, readPage, getScans,
 } from '../lib/permapath.js';
 
 const HELP = `PermaPath: QR codes you never have to reprint.
@@ -13,9 +13,10 @@ Usage: permapath <command> [options]
   keygen                         Print a new key (store it somewhere safe)
   phrase                         Print your key's 24-word recovery phrase (a paper
                                  backup; works anywhere the key does)
-  create <url> [--name N] [--password P]
+  create <url> [--name N] [--password P] [--no-count]
                                  Create a link (optionally password protected);
-                                 prints its ID and QR URL
+                                 prints its ID and QR URL. Scans are counted
+                                 unless --no-count
   page <title> [--text T | --text-file F] [--photo F] [--name N] [--password P]
                                  Create a link to a simple page you write
   edit-page <link-id> [--title T] [--text T | --text-file F] [--photo F | --no-photo]
@@ -29,6 +30,19 @@ Usage: permapath <command> [options]
   lock <link-id> --password P    Password-protect a link, or change its password
   unlock <link-id>               Remove password protection
   qr <link-id>                   Print the link's QR code as SVG
+  scans <link-id>                Scan count: total and per day (UTC)
+  count <link-id> on|off         Turn scan counting on or off
+  off-at <link-id> <date|none> [--message M]
+                                 Turn the link off automatically at a date and
+                                 time (ISO 8601, e.g. 2026-12-31T23:00-05:00)
+  message <link-id> <text>       What people see when the link is off ("" to clear)
+  rules <link-id> <json|none> [--tz Zone]
+                                 Send some people elsewhere. JSON list, first match
+                                 wins, e.g. [{"os":"ios","to":"https://..."},
+                                 {"days":"12345","from":"11:00","until":"15:00","to":"https://..."}]
+                                 Conditions: os (ios|android), days (0=Sunday),
+                                 from/until (HH:MM), after/before (Unix ms).
+                                 Days and times use --tz (default: this computer's)
 
 Options:
   --key-file <path>   Read the key (or recovery phrase) from a file (default: PERMAPATH_KEY env var)
@@ -46,7 +60,7 @@ function parse(argv) {
   const args = [], opts = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--json' || a === '--force' || a === '--no-photo') opts[a.slice(2)] = true;
+    if (a === '--json' || a === '--force' || a === '--no-photo' || a === '--no-count') opts[a.slice(2)] = true;
     else if (a.startsWith('--')) {
       if (i + 1 >= argv.length) throw new Error(`${a} needs a value`);
       opts[a.slice(2)] = argv[++i];
@@ -95,7 +109,7 @@ async function main() {
       return out(phrase, { phrase });
     }
     case 'create': {
-      const r = await createLink(await key(opts), { destination: need(rest[0], 'URL'), name: opts.name || '', password: opts.password || '' });
+      const r = await createLink(await key(opts), { destination: need(rest[0], 'URL'), name: opts.name || '', password: opts.password || '', count: !opts['no-count'] });
       return out(`${r.id}\n${r.url}`, r);
     }
     case 'page': {
@@ -144,6 +158,11 @@ async function main() {
         `QR URL:  ${linkUrl(link.id)}`,
         `Now:     ${describe(link.current)}`,
         ...(unlocksText ? [`Unlocks: ${unlocksText}`] : []),
+        ...(link.current.count ? ['Scans:   counted (see "scans")'] : []),
+        ...(link.current.offAt ? [`Off at:  ${new Date(link.current.offAt).toISOString()}`] : []),
+        ...(link.current.message ? [`Message: ${link.current.message}`] : []),
+        ...link.current.routes.map((r, i) => `${i ? '         ' : 'Rules:   '}${JSON.stringify(r)}`),
+        ...(link.current.routes.length && link.current.tz ? [`         (times in ${link.current.tz})`] : []),
         ...(page ? [`Page:    "${page.title}"${page.image ? ' (with photo)' : ''}`, ...page.text.trim().split('\n').slice(0, 6).map((l) => `         ${l}`)] : []),
         `Owner:   ${link.owner}`,
         'History (newest first):',
@@ -180,6 +199,34 @@ async function main() {
         : await unlockLink(k, id, { onWait });
       if (!opts.json) process.stderr.write('\n');
       return out(cmd === 'lock' ? `Locked ${id}. People need the password to open it.` : `Unlocked ${id}. It now opens without a password.`, r);
+    }
+    case 'scans': {
+      const s = await getScans(need(rest[0], 'link ID'));
+      return out([`${s.total} scan${s.total === 1 ? '' : 's'}`, ...s.days.slice(0, 30).map((d) => `  ${d.day}  ${d.n}`)].join('\n'), s);
+    }
+    case 'count': {
+      if (rest[1] !== 'on' && rest[1] !== 'off') throw new Error('Use: count <link-id> on|off');
+      const r = await updateLink(await key(opts), need(rest[0], 'link ID'), { count: rest[1] === 'on' });
+      return out(`Scan counting ${rest[1]} for ${rest[0]}`, r);
+    }
+    case 'off-at': {
+      const when = need(rest[1], 'date (or "none")');
+      const changes = { offAt: when === 'none' ? 0 : when, ...(opts.message !== undefined ? { message: opts.message } : {}) };
+      const r = await updateLink(await key(opts), need(rest[0], 'link ID'), changes);
+      return out(r.offAt ? `${rest[0]} turns off at ${new Date(r.offAt).toISOString()}` : `${rest[0]} no longer turns off automatically`, r);
+    }
+    case 'message': {
+      if (rest[1] === undefined) throw new Error('Missing message text ("" to clear).');
+      const r = await updateLink(await key(opts), need(rest[0], 'link ID'), { message: rest[1] });
+      return out(r.message ? `Set the off message for ${rest[0]}` : `Cleared the off message for ${rest[0]}`, r);
+    }
+    case 'rules': {
+      const text = need(rest[1], 'rules JSON (or "none")');
+      let routes;
+      try { routes = text === 'none' ? [] : JSON.parse(text); } catch { throw new Error('Rules must be a JSON list.'); }
+      if (!Array.isArray(routes)) throw new Error('Rules must be a JSON list.');
+      const r = await updateLink(await key(opts), need(rest[0], 'link ID'), { routes, ...(opts.tz ? { tz: opts.tz } : {}) });
+      return out(r.routes.length ? `${rest[0]} now has ${r.routes.length} rule${r.routes.length === 1 ? '' : 's'}${r.tz ? ` (times in ${r.tz})` : ''}` : `Removed the rules from ${rest[0]}`, r);
     }
     case 'qr':
       return console.log(linkQrSvg(need(rest[0], 'link ID')));

@@ -9,6 +9,8 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium, webkit, devices } from 'playwright';
 import worker from '../worker/src/index.js';
+import { fetchLinkHistory } from '../editor/links.js';
+import { RESOLVER_TX } from '../editor/config.js';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const which = process.argv[2] || 'all';
@@ -79,6 +81,51 @@ if (which === 'all' || which === 'resolver') {
   await check('resolver: hands off to newer resolver', async (page) => {
     await page.goto(`${base}/?l=${fx.handoff}`);
     await page.waitForURL(`${base}/${'H'.repeat(43)}?l=${fx.handoff}&h=1`, { timeout: 30_000 });
+  });
+  await check('resolver v3: device rule sends iPhones elsewhere', async (page) => {
+    await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' }));
+    await page.goto(`${base}/?l=${fx.routed}`);
+    await page.waitForURL(/example\.com/, { timeout: 30_000 });
+    assert.equal(page.url(), 'https://example.com/?pp=ios');
+  });
+  await check('resolver v3: everyone else gets the main destination', async (page) => {
+    await page.goto(`${base}/?l=${fx.routed}`);
+    await page.waitForURL(/example\.com/, { timeout: 30_000 });
+    assert.equal(page.url(), 'https://example.com/?pp=default');
+  });
+  await check('resolver v3: past Off-At shows the owner’s message', async (page) => {
+    await page.goto(`${base}/?l=${fx.ended}`);
+    await page.getByText('This event has ended. See you next year!').waitFor({ timeout: 30_000 });
+    assert.equal(await page.locator('#title').textContent(), 'This link is turned off');
+  });
+  await check('resolver v3: counts the scan without delaying the redirect', async (page) => {
+    const pings = [];
+    await page.route('https://permapath.link/api/scan**', (route) => { pings.push(route.request()); return route.fulfill({ status: 204 }); });
+    await page.goto(`${base}/?l=${fx.counted}`);
+    await page.waitForURL('https://example.com/?pp=counted', { timeout: 30_000 });
+    await page.waitForTimeout(500);
+    assert.equal(pings.length, 1);
+    assert.equal(pings[0].method(), 'POST');
+    assert.equal(new URL(pings[0].url()).searchParams.get('l'), fx.counted);
+  });
+  await check('resolver v3: no scan ping for links without Count', async (page) => {
+    const pings = [];
+    await page.route('https://permapath.link/api/scan**', (route) => { pings.push(route.request()); return route.fulfill({ status: 204 }); });
+    await page.goto(`${base}/?l=${fx.plain}`);
+    await page.waitForURL('https://example.com/?pp=plain', { timeout: 30_000 });
+    await page.waitForTimeout(500);
+    assert.equal(pings.length, 0);
+  });
+  await check('resolver v3: a Resolver tag naming this page is not followed', async (page) => {
+    const html = fs.readFileSync(path.join(root, 'resolver/index.html'), 'utf8');
+    await page.route(`${base}/${'S'.repeat(43)}?**`, (route) => route.fulfill({ contentType: 'text/html', body: html }));
+    await page.goto(`${base}/${'S'.repeat(43)}?l=${fx.self}`);
+    await page.waitForURL(/example\.com/, { timeout: 30_000 });
+    assert.equal(page.url(), 'https://example.com/?pp=self-v1');
+  });
+  await check('resolver v3: the same tag is followed from another resolver', async (page) => {
+    await page.goto(`${base}/?l=${fx.self}`);
+    await page.waitForURL(`${base}/${'S'.repeat(43)}?l=${fx.self}&h=1`, { timeout: 30_000 });
   });
   await check('resolver: handoff stops at hop limit', async (page) => {
     await page.goto(`${base}/?l=${fx.handoff}&h=3`);
@@ -522,6 +569,72 @@ if (which === 'all' || which === 'editor') {
     } finally {
       await ctx.close();
     }
+  });
+  await check('editor: more options (scan count, end date, device and time rules) save and reload', async (page) => {
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByText('No links yet').waitFor({ timeout: 30_000 });
+
+    await page.locator('#create-dest').fill('example.com/?pp=options');
+    await page.locator('#create-name').fill('Options test');
+    await page.locator('#create-options summary').click();
+    assert.equal(await page.locator('#create-options-count').isChecked(), true, 'counting is on by default');
+    await page.locator('#create-options-off-on').check();
+    await page.locator('#create-options-off-at').fill('2030-01-01T09:00');
+    await page.locator('#create-options-message').fill('All done, thanks!');
+    await page.locator('#create-options-ios').fill('apps.apple.com/app/x');
+    await page.getByRole('button', { name: /certain days or times/ }).click();
+    const rule = page.locator('.time-rule').first();
+    await rule.getByLabel('From').fill('11:00');
+    await rule.getByLabel('Until').fill('15:00');
+    await rule.getByLabel('Send people to').fill('example.com/?pp=lunch');
+    await page.getByRole('button', { name: 'Create link' }).click();
+    const card = page.locator('.link-item', { hasText: 'Options test' });
+    await card.getByText(/Turns off .*2 other destinations by device or time/).waitFor({ timeout: 30_000 });
+    assert.equal(await page.locator('#create-options-count').isChecked(), true, 'form resets to counting on');
+
+    const id = await card.getAttribute('data-id');
+    let link;
+    for (let i = 0; i < 30 && !link; i++) {
+      link = await fetchLinkHistory(id).catch(() => null);
+      if (!link) await new Promise((r) => setTimeout(r, 3000));
+    }
+    assert.ok(link, 'link indexed');
+    const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    assert.equal(link.current.count, true);
+    assert.equal(link.current.message, 'All done, thanks!');
+    assert.equal(link.current.offAt, await page.evaluate(() => new Date('2030-01-01T09:00').getTime()));
+    assert.deepEqual(link.current.routes, [
+      { to: 'https://apps.apple.com/app/x', os: 'ios' },
+      { to: 'https://example.com/?pp=lunch', days: '12345', from: '11:00', until: '15:00' },
+    ]);
+    assert.equal(link.current.tz, zone);
+
+    // Edit: the options load back; turn counting off and drop the iPhone rule.
+    await card.getByRole('button', { name: 'Edit' }).click();
+    await page.locator('#edit-options summary').click();
+    assert.equal(await page.locator('#edit-options-ios').inputValue(), 'https://apps.apple.com/app/x');
+    assert.equal(await page.locator('.time-rule').getByLabel('From').inputValue(), '11:00');
+    assert.equal(await page.locator('#edit-options-message').inputValue(), 'All done, thanks!');
+    await page.locator('#edit-options-count').uncheck();
+    await page.locator('#edit-options-ios').fill('');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await page.locator('#edit-dialog').waitFor({ state: 'hidden', timeout: 30_000 });
+    await card.getByText(/1 other destination by device or time/).waitFor({ timeout: 30_000 });
+    for (let i = 0; i < 30; i++) {
+      link = await fetchLinkHistory(id).catch(() => null);
+      if (link?.history.length === 2) break;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    assert.equal(link.history.length, 2);
+    assert.equal(link.current.count, false);
+    assert.equal(link.current.routes.length, 1);
+    assert.equal(link.current.resolver, RESOLVER_TX, 'updates using v3 tags name the current resolver');
+    assert.deepEqual(errors, []);
   });
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);

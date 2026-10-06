@@ -683,6 +683,18 @@ if (which === 'all' || which === 'editor') {
     await page.getByRole('button', { name: 'Create a key' }).waitFor(); // signed out by reload; the view choice is kept
     assert.equal(await page.evaluate(() => localStorage.getItem('permapath:view')), '"table"');
   });
+  await check('editor: says so when an upload goes through the slow backup uploader', async (page) => {
+    await page.route('https://upload.ardrive.io/**', (route) => route.fulfill({ status: 402, body: 'payment required' }));
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByText('No links yet').waitFor({ timeout: 30_000 });
+    await page.locator('#create-dest').fill('example.com/?pp=slow');
+    await page.locator('#create-name').fill('Slow one');
+    await page.getByRole('button', { name: 'Create link' }).click();
+    await page.locator('.link-item', { hasText: 'Slow one' }).getByText(/backup uploader/).waitFor({ timeout: 10_000 });
+  });
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);
     await page.locator('#login-key').fill('definitely not a key');

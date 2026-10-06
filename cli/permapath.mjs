@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import {
   generateKey, loadKey, recoveryPhrase, createLink, createBatch, listLinks, getLink, updateLink, linkUrl, linkQrSvg, linkStatus,
-  lockLink, unlockLink, revealLink, createPage, editPage, readPage, getScans,
+  lockLink, unlockLink, revealLink, createPage, editPage, readPage, getScans, uploadStatus,
 } from '../lib/permapath.js';
 
 const HELP = `PermaPath: QR codes you never have to reprint.
@@ -239,7 +239,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().then(() => {
+  if (uploadStatus.slow) console.error('Note: Arweave’s fast uploader didn’t take this, so it went through the backup uploader. It can take a few minutes to go live.');
+}).catch((err) => {
   console.error(`permapath: ${err.message}`);
   process.exit(1);
 });

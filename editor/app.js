@@ -74,7 +74,8 @@ function writePending(list) {
 }
 
 function addPending(state) {
-  writePending([...readPending().filter((p) => p.id !== state.id || p.seq > state.seq), { ...state, postedAt: Date.now() }]);
+  const slow = Date.now() - slowUploadAt < 60_000;
+  writePending([...readPending().filter((p) => p.id !== state.id || p.seq > state.seq), { ...state, postedAt: Date.now(), ...(slow ? { slow } : {}) }]);
 }
 
 // ---------- QR ----------
@@ -477,6 +478,8 @@ function renderTable() {
   $('links-table').replaceChildren(h('table', { class: 'links-table' }, h('thead', {}, head), h('tbody', {}, rows)));
 }
 
+const SLOW_NOTE = 'Arweave’s fast uploader didn’t take this one, so it went through the backup uploader. It can take a few minutes to go live.';
+
 function render() {
   const table = viewMode === 'table' && links.length > 0;
   $('links').hidden = table;
@@ -501,12 +504,13 @@ function render() {
     if (link.pending && !link.unindexed && describe(link.pending) !== describe(link)) {
       dest.push(h('p', { class: 'dest old' }, describe(link)));
       dest.push(h('p', { class: 'dest pending' }, `→ ${describe(link.pending)} (going live…)`));
+      if (link.pending.slow) dest.push(h('p', { class: 'muted dest note' }, SLOW_NOTE));
     } else if (publishingPages.has(view.destination)) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
       dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : view.kind === 'contact' ? 'contact card' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
     } else if (link.unindexed) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
-      dest.push(h('p', { class: 'muted dest note' }, 'Just created. Usually live within a minute.'));
+      dest.push(h('p', { class: 'muted dest note' }, link.pending?.slow ? SLOW_NOTE : 'Just created. Usually live within a minute.'));
     } else {
       dest.push(h('p', { class: 'dest' }, describe(view)));
     }
@@ -535,10 +539,19 @@ function render() {
 
 // ---------- writes ----------
 
+// When an upload last went to the slow fallback (Turbo refused it, e.g. this
+// device's free allowance is used up), so the list can say it may take a while.
+let slowUploadAt = 0;
+async function uploadTracked(item) {
+  const result = await upload(item);
+  if (result.slow) slowUploadAt = Date.now();
+  return result;
+}
+
 async function publish(tags) {
   // Empty body: lets anyone verify the signature from GraphQL fields alone.
   const item = await createDataItem(key, tags, '');
-  await upload(item);
+  await uploadTracked(item);
   return item.id;
 }
 
@@ -557,7 +570,7 @@ async function publishPage(page) {
     { name: 'App-Version', value: '1' },
     { name: 'Type', value: 'page' },
   ], html);
-  await upload(item);
+  await uploadTracked(item);
   return `https://arweave.net/${item.id}`;
 }
 
@@ -570,7 +583,7 @@ async function publishVcard(vcard) {
     { name: 'App-Version', value: '1' },
     { name: 'Type', value: 'vcard' },
   ], vcard);
-  await upload(item);
+  await uploadTracked(item);
   return `https://arweave.net/${item.id}`;
 }
 
@@ -631,7 +644,7 @@ async function publishDestination(fields, onProgress = () => {}) {
     { name: 'App-Version', value: '1' },
     { name: 'Type', value: 'locked' },
   ], html);
-  await upload(item);
+  await uploadTracked(item);
   return { destination: `https://arweave.net/${item.id}`, kind: 'locked', title, published: true };
 }
 

@@ -114,7 +114,8 @@ export function createFakeArweave() {
     if (method === 'POST' && UPLOAD.test(`https://${target}`)) {
       const item = await parseItem(new Uint8Array(body));
       items.set(item.id, item);
-      return json({ id: item.id, timestamp: Date.now() });
+      // up.arweave.net replies without an "id", which is how the editor knows it was slow.
+      return json(u.host === 'up.arweave.net' ? { 'bundle-status': 'complete' } : { id: item.id, timestamp: Date.now() });
     }
     if (method === 'POST' && (u.pathname === '/graphql' || /^\/api\/graphql\/\w+$/.test(u.pathname))) {
       return json(search(JSON.parse(Buffer.from(body).toString('utf8'))));

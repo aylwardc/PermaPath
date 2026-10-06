@@ -209,7 +209,7 @@ $('phrase-form').addEventListener('submit', async (e) => {
 
 // ---------- recovery phrase (the same key as 24 words) ----------
 
-const fillPhrase = (list, phrase) => list.replaceChildren(...phrase.split(' ').map((w) => h('li', {}, w)));
+const fillPhrase = (list, phrase) => list.replaceChildren(...phrase.split(' ').map((w, i) => h('li', {}, h('span', { class: 'n' }, `${i + 1}.`), w)));
 
 // Prints a sheet with the phrase and key, hiding the rest of the page.
 async function printSheet(text) {
@@ -282,10 +282,13 @@ $('refresh').addEventListener('click', async (e) => {
   if (button.disabled) return;
   button.disabled = true;
   button.textContent = 'Refreshing…';
-  await refresh();
+  // Keep "Refreshing…" up long enough to see, even when Arweave answers fast.
+  await Promise.all([refresh(), new Promise((r) => setTimeout(r, 800))]);
   button.disabled = false;
-  button.textContent = /Couldn’t/.test($('list-status').textContent) ? 'Refresh' : 'Up to date';
-  setTimeout(() => { button.textContent = 'Refresh'; }, 1500);
+  const failed = /Couldn’t/.test($('list-status').textContent);
+  button.textContent = failed ? 'Refresh' : 'Up to date';
+  if (!failed && links.length) $('list-status').textContent = `Checked ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  setTimeout(() => { button.textContent = 'Refresh'; }, 2500);
 });
 
 // New page links are created right away, but scans only show the page once

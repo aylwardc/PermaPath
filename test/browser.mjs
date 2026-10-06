@@ -249,7 +249,7 @@ if (which === 'all' || which === 'editor') {
       assert.equal(await page.evaluate(() => navigator.clipboard.readText()), keyText, 'Copy key copies the key');
     }
     await page.getByRole('button', { name: 'Show recovery phrase' }).click();
-    const phrase = (await page.locator('#key-phrase li').allTextContents()).join(' ');
+    const phrase = (await page.locator('#key-phrase li').evaluateAll((els) => els.map((el) => el.lastChild.textContent))).join(' ');
     assert.equal(phrase.split(' ').length, 24, 'recovery phrase shown');
     await page.locator('#key-dialog').getByRole('button', { name: 'Done' }).click();
     await page.locator('#create-dest').fill('example.com/?pp=editor-v0');

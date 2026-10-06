@@ -122,6 +122,7 @@ WORKER=1 node test/browser.mjs editor   # editor tests served through the Worker
 BROWSER=webkit node test/browser.mjs    # same tests on WebKit (Safari's engine)
 cd editor && python3 -m http.server 8090   # run the editor locally
 node scripts/make-print-test.mjs  # rebuild editor/print-test-*.pdf (the printable size test)
+node scripts/stats.mjs          # usage stats from public data (emailed weekly from ~/python_scripts)
 ```
 
 ## Deploy

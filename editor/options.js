@@ -16,6 +16,26 @@ function h(tag, attrs = {}, ...children) {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const browserZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } };
 
+// "Pacific Time (America/Los Angeles)", or just the ID where browsers can't name it.
+function zoneLabel(zone) {
+  let name = '';
+  try {
+    name = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longGeneric' })
+      .formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value || '';
+  } catch { /* older browsers */ }
+  const id = zone.replace(/_/g, ' ');
+  return name && !/^GMT/.test(name) ? `${name} (${id})` : id;
+}
+let zoneLabels = null; // built once, on first use: [[id, label]]
+function allZones() {
+  if (!zoneLabels) {
+    let ids = [];
+    try { ids = Intl.supportedValuesOf('timeZone'); } catch { /* older browsers: just the current zone */ }
+    zoneLabels = new Map(ids.map((z) => [z, zoneLabel(z)]));
+  }
+  return zoneLabels;
+}
+
 // <input type="datetime-local"> works in the browser's local time.
 const pad = (n) => String(n).padStart(2, '0');
 function toLocalInput(ms) {
@@ -54,7 +74,9 @@ export function optionsFields(details) {
   const ios = h('input', { type: 'text', inputmode: 'url', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', id: id('ios'), placeholder: 'https://apps.apple.com/…' });
   const android = h('input', { type: 'text', inputmode: 'url', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', id: id('android'), placeholder: 'https://play.google.com/…' });
   const timeList = h('div', { class: 'time-rules' });
-  const zoneNote = h('p', { class: 'muted small' });
+  const zone = h('select', { id: id('tz') });
+  const zoneBox = h('label', { class: 'zone' }, 'Time zone for these days and times', zone,
+    h('span', { class: 'muted small hint' }, 'Rules follow this time zone wherever people scan from. It starts as your device’s time zone; change it if the place is somewhere else. The first matching rule wins.'));
   const addTime = h('button', { type: 'button', class: 'link', onclick: () => { addTimeRule({}); updateNote(); } }, 'Add a different link for certain days or times');
   const keptNote = h('p', { class: 'muted small', hidden: true });
   const lockedNote = h('p', { class: 'muted small', hidden: true }, 'Different links by device or time aren’t available with Password protect, because they would be public.');
@@ -63,13 +85,12 @@ export function optionsFields(details) {
     h('p', { class: 'muted small' }, 'Everyone else goes to the main destination. These addresses are public.'),
     h('label', {}, 'iPhone and iPad', ios),
     h('label', {}, 'Android', android),
-    timeList, zoneNote, addTime, keptNote);
+    timeList, zoneBox, addTime, keptNote);
   const error = h('p', { class: 'error', hidden: true });
 
   details.classList.add('advanced');
   details.replaceChildren(summary, h('div', { class: 'advanced-body' }, countBox, offBox, lockedNote, routesBox, error));
 
-  let tz = '';
   let kept = []; // rules this form can't show (e.g. made with the CLI), saved unchanged
 
   function addTimeRule(rule) {
@@ -85,6 +106,7 @@ export function optionsFields(details) {
       h('legend', {}, 'Certain days or times'),
       h('div', { class: 'days' }, days),
       h('div', { class: 'pair' }, h('label', {}, 'From', from), h('label', {}, 'Until', until)),
+      h('p', { class: 'muted small hint' }, 'Leave From and Until empty for the whole day.'),
       h('div', { class: 'pair dates' }, h('label', {}, 'Starting ', h('span', { class: 'muted' }, '(optional)'), after), h('label', {}, 'Ending ', h('span', { class: 'muted' }, '(optional)'), before)),
       h('label', {}, 'Send people to', to),
       h('button', { type: 'button', class: 'link', onclick: () => { box.remove(); updateNote(); } }, 'Remove'));
@@ -100,9 +122,7 @@ export function optionsFields(details) {
   function updateNote() {
     const rules = timeList.children.length;
     addTime.hidden = rules + 2 + kept.length >= ROUTES_MAX;
-    const zone = tz || browserZone();
-    zoneNote.textContent = rules ? `Days and times are in ${zone ? zone.replace(/_/g, ' ') : 'your time zone'}, wherever people scan from. The first matching rule wins.` : '';
-    zoneNote.hidden = !rules;
+    zoneBox.hidden = !rules;
   }
 
   function updateSummary() {
@@ -143,7 +163,7 @@ export function optionsFields(details) {
           offAt: off,
           message: message.value.trim(),
           routes: checked,
-          tz: checked.some((r) => r.days || r.from || r.until) ? (tz || browserZone()) : '',
+          tz: checked.some((r) => r.days || r.from || r.until) ? (zone.value || browserZone()) : '',
         };
       } catch (err) {
         details.open = true;
@@ -156,7 +176,10 @@ export function optionsFields(details) {
       offAtRow.hidden = !state.offAt;
       offAt.value = toLocalInput(state.offAt);
       message.value = state.message || '';
-      tz = state.tz || '';
+      const current = state.tz || browserZone();
+      const labels = allZones();
+      const zones = [...new Set([current, ...labels.keys()])].filter(Boolean).sort();
+      zone.replaceChildren(...zones.map((z) => h('option', { value: z, selected: z === current }, labels.get(z) || zoneLabel(z))));
       const routes = state.routes || [];
       const iosRule = routes.find((r) => isDeviceRule(r) && r.os === 'ios');
       const androidRule = routes.find((r) => isDeviceRule(r) && r.os === 'android');

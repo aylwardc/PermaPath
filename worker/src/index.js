@@ -3,7 +3,7 @@
 // visited directly, which would stop password managers autofilling keys and
 // drop the editor's local state. QR codes never point here.
 // EDITOR_TX is set by `node scripts/deploy.mjs editor`.
-export const EDITOR_TX = '10k9DDA9iaV55_UP_spm90tRkAPnJRlNzqVqpcT0gP8';
+export const EDITOR_TX = 'FHwprlcIcBzegd1qdD1Z0g-_3yX9gMnh5PquCeT3gfo';
 // Tried in order. arweave.net may refuse requests from Cloudflare Workers, so
 // fall back to other gateways that serve path manifests.
 const GATEWAYS = ['https://arweave.net', 'https://turbo-gateway.com', 'https://ardrive.net'];
@@ -156,13 +156,16 @@ export default {
     const path = url.pathname.replace(/^\/+/, '');
     if (path.split('/').includes('..')) return new Response('Not found', { status: 404 });
 
-    // Content under a TX never changes, so let the edge cache it for a day.
+    // Content under a TX never changes, so let the edge cache it for a day, but
+    // only successes: a gateway's "not found" for a just-uploaded file must not
+    // stick (on 2026-10-05 cached 404s kept a new editor broken after it was
+    // served). Gateways also fail now and then, so go round them twice.
     let upstream = null;
     const failures = [];
-    for (const gateway of GATEWAYS) {
+    for (const gateway of [...GATEWAYS, ...GATEWAYS]) {
       try {
         const res = await fetch(`${gateway}/${EDITOR_TX}/${path}`, {
-          cf: { cacheEverything: true, cacheTtl: 86400 },
+          cf: { cacheEverything: true, cacheTtlByStatus: { '200-299': 86400, '300-599': 0 } },
           signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
         });
         if (res.ok) {

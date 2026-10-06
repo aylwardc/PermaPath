@@ -276,7 +276,17 @@ async function refresh() {
   if (outstanding.length) pollTimer = setTimeout(refresh, 15_000);
 }
 
-$('refresh').addEventListener('click', refresh);
+// Feedback while it checks Arweave, then a brief "Up to date".
+$('refresh').addEventListener('click', async (e) => {
+  const button = e.currentTarget;
+  if (button.disabled) return;
+  button.disabled = true;
+  button.textContent = 'Refreshing…';
+  await refresh();
+  button.disabled = false;
+  button.textContent = /Couldn’t/.test($('list-status').textContent) ? 'Refresh' : 'Up to date';
+  setTimeout(() => { button.textContent = 'Refresh'; }, 1500);
+});
 
 // New page links are created right away, but scans only show the page once
 // arweave.net serves it (seconds to ~15 minutes). Tracked while this tab is open.

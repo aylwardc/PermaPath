@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/10k9DDA9iaV55_UP_spm90tRkAPnJRlNzqVqpcT0gP8/
+  directly: https://arweave.net/FHwprlcIcBzegd1qdD1Z0g-_3yX9gMnh5PquCeT3gfo/
 - **Resolver:** v3, https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE
   (`RESOLVER_TX` in `editor/config.js`). Older codes use v2 (`baTff…`) or v1 (`G81f…`)
   and forward to v3 when their owner uses a v3 feature.
@@ -124,6 +124,8 @@ cd editor && python3 -m http.server 8090   # run the editor locally
 ```bash
 npm run deploy:editor    # uploads the editor, writes its TX into worker/src/index.js
 npm run deploy:worker    # serves it on permapath.link (reads CLOUDFLARE_API_TOKEN from untracked .env)
+                         # first checks turbo-gateway.com or ardrive.net already serve the editor
+                         # (arweave.net blocks Workers); if not, wait a few minutes and rerun
 ```
 
 Commit the updated `worker/src/index.js` and the "Live" URL above after each editor deploy.

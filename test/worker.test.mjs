@@ -23,7 +23,7 @@ test('serves the editor index and files from the current editor TX', async () =>
     assert.equal(res.headers.get('content-type'), 'text/html');
     assert.equal(await res.text(), '<html>');
     assert.equal(stub.calls[0].url, `https://arweave.net/${EDITOR_TX}/`);
-    assert.deepEqual(stub.calls[0].init.cf, { cacheEverything: true, cacheTtl: 86400 });
+    assert.deepEqual(stub.calls[0].init.cf, { cacheEverything: true, cacheTtlByStatus: { '200-299': 86400, '300-599': 0 } }, 'errors are never cached');
 
     res = await worker.fetch(req('/vendor/qrcode.mjs'));
     assert.equal(stub.calls[1].url, `https://arweave.net/${EDITOR_TX}/vendor/qrcode.mjs`);
@@ -68,10 +68,10 @@ test('maps upstream errors and rejects other methods', async () => {
     assert.equal((await worker.fetch(req('/missing'))).status, 404);
     const broken = await worker.fetch(req('/broken'));
     assert.equal(broken.status, 502);
-    assert.match(await broken.text(), /arweave\.net 500, turbo-gateway\.com 500, ardrive\.net 500/);
+    assert.match(await broken.text(), /arweave\.net 500, turbo-gateway\.com 500, ardrive\.net 500, arweave\.net 500/, 'tries every gateway twice');
     assert.equal((await worker.fetch(req('/down'))).status, 502);
     assert.equal((await worker.fetch(req('/', 'POST'))).status, 405);
-    assert.equal(stub.calls.length, 9);
+    assert.equal(stub.calls.length, 18);
   } finally {
     stub.restore();
   }

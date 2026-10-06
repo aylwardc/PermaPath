@@ -1036,10 +1036,10 @@ $('import-form').addEventListener('submit', async (e) => {
   $('import-submit').textContent = 'Import';
 });
 
-$('ai-tip-copy').addEventListener('click', (e) => copy(
-  'Read https://permapath.link/llms.txt, then help me make PermaPath links. Here is what I need: ',
-  e.currentTarget,
-));
+// The same prompt from the landing page tip and the signed-in tip.
+const AI_PROMPT = 'Read https://permapath.link/llms.txt, then help me make PermaPath links. Here is what I need: ';
+$('ai-tip-copy').addEventListener('click', (e) => copy(AI_PROMPT, e.currentTarget));
+$('landing-ai-copy').addEventListener('click', (e) => copy(AI_PROMPT, e.currentTarget));
 
 // Ready: enable the sign-in buttons (shown, but disabled, until now).
 for (const b of document.querySelectorAll('[data-needs-js]')) b.disabled = false;

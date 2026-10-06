@@ -40,7 +40,7 @@ a { color: var(--accent); }
 .muted { color: var(--muted); font-weight: normal; }
 .center { text-align: center; }
 .lede { color: var(--muted); margin: 0 0 1.5rem; }
-.narrow { max-width: 26rem; margin: 0 auto; padding: 2.5rem 16px 3rem; }
+.narrow { max-width: 34rem; margin: 0 auto; padding: 2.5rem 16px 3rem; }
 .wide { max-width: 62rem; margin: 0 auto; padding: 1.5rem 16px 3rem; }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }

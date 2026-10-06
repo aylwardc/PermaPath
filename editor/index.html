@@ -37,9 +37,9 @@
 
 <section id="signin" class="landing">
   <h1>PermaPath</h1>
-  <p class="lede">Links that never die.</p>
-  <p class="sublede">QR codes you never have to reprint.</p>
-  <p class="intro">Share a link or print its QR code once, then point it somewhere new whenever you need to. The link and the code never change. Lock it with a password when it’s private.</p>
+  <p class="lede">Links that never die. QR codes you never have to reprint.</p>
+  <p class="sublede">How much? Free.</p>
+  <p class="intro">Change where a QR code points after it’s been printed. Printed QR codes often outlive their content, which means reprinting or destroying them. Dynamic links let you update the content behind a QR code without changing the code itself.</p>
 
   <noscript><p class="card">Signing in and creating links needs JavaScript.</p></noscript>
   <!-- Shown at once; its buttons stay disabled until app.js is ready, so they're
@@ -71,9 +71,23 @@
 
   <div class="info">
     <h2>Stop reprinting</h2>
-    <p>Printed things outlive the links on them. Menus change, documents get new versions, websites move.
-      With PermaPath you update where a code goes instead of replacing what’s printed, from your phone, in seconds.</p>
-    <p class="more-link"><a href="compare.html">How PermaPath compares to subscription QR code services →</a></p>
+    <p>Menus change, documents get updated, websites move. Simply update where a code points instead of replacing what’s printed.
+      Do it from your phone, computer, or just ask an AI agent to update it for you.</p>
+    <p class="more-link"><a href="compare.html">Compare PermaPath with paid services (we aren’t great for all situations) →</a></p>
+  </div>
+
+  <div class="info">
+    <h2>Advanced features</h2>
+    <ul class="uses">
+      <li><strong>Password protection</strong>Lock a link or page so only people with the password can see where it goes or what it says.</li>
+      <li><strong>Different links by device</strong>Send iPhone and iPad users to the App Store and Android users to Google Play, from one code.</li>
+      <li><strong>Different links by day and time</strong>Breakfast, lunch and dinner menus on the same code, or an event page that switches on a date.</li>
+      <li><strong>Turn off on a date</strong>End a promotion or event automatically, with your own message for anyone who scans late.</li>
+      <li><strong>Scan counts</strong>See how many times each code is scanned, per day. Nothing about who scanned.</li>
+      <li><strong>Pages and contact cards</strong>No website needed: write a simple page with a photo, or a contact card with Call, Text, Email and Save contact buttons.</li>
+      <li><strong>Many codes at once</strong>Create a batch to print before you know where they’ll go, or import and export a spreadsheet.</li>
+      <li><strong>AI and automation</strong>Ask an AI assistant to make or update links, or use the command line to update them from scripts.</li>
+    </ul>
   </div>
 
   <div class="info">
@@ -84,7 +98,7 @@
       <li><strong>Printed in bulk</strong>Packaging, manuals, product labels, books and flyers.</li>
       <li><strong>Content that changes</strong>Menus, event schedules, real estate signs, museum labels.</li>
       <li><strong>Private details</strong>Family info, members-only notes or private event details, locked with a password, on a code anyone can see.</li>
-      <li><strong>Luggage tags</strong>Bag tags that tell a finder how to reach you. Change the details any time without a new tag.</li>
+      <li><strong>Lost and found</strong>Codes that tell a finder how to reach you. Think luggage tags, pet collars, keys, bikes, skis, etc.</li>
     </ul>
     <p class="more-link"><a href="uses.html">More ideas for personal use, businesses, organizations and makers →</a></p>
   </div>
@@ -97,36 +111,29 @@
       <li><strong>Change the destination</strong> whenever you need to. Scans follow within seconds.</li>
     </ol>
     <div class="tip">
-      <strong>Tip: let an AI assistant do it.</strong> Tell ChatGPT, Claude or another assistant:
-      <em>“Read permapath.link/llms.txt and make PermaPath links for…”</em> It can draft a list for you to import,
-      or, if it can run commands and you give it a key, make the links itself. Use a separate key for that.
-      <a href="llms.txt">Instructions for AI assistants</a>
+      <strong>Tip: ask AI to do it for you.</strong> This site is optimized for AI agents,
+      <button type="button" class="link" id="landing-ai-copy" data-needs-js disabled>copy this prompt</button> and ask for what you want.
     </div>
   </div>
 
   <div class="info">
     <h2>Not a good fit for</h2>
     <ul class="notes">
-      <li><strong>Highly sensitive secrets.</strong> Password protection uses strong encryption, but old versions are never deleted and a short password could eventually be guessed. Use a long one for anything important.</li>
-      <li><strong>Marketing analytics.</strong> PermaPath counts scans per day and nothing more: no locations, no devices, nothing about who scanned. Counts are public.</li>
+      <li><strong>Highly sensitive secrets.</strong> Password protection uses strong encryption, but old versions are never deleted and a short password could eventually be guessed. No state secrets, social security numbers, or DNA results please.</li>
+      <li><strong>Marketing analytics.</strong> PermaPath counts scans and nothing more: no locations, no devices, nothing about who scanned.</li>
       <li><strong>Changes that must be instant.</strong> Most go live within seconds, but some take up to 20 minutes.</li>
-      <li><strong>Big files or full websites.</strong> Pages you write here are simple: text and one photo.</li>
+      <li><strong>Big files or full websites.</strong> Uploads can get expensive, we’re trying to keep this free.</li>
     </ul>
   </div>
 
-  <div class="info">
-    <h2>Built to outlast this website</h2>
-    <p>Each code points to a permanent page on Arweave, a network designed to store data indefinitely.
-      Your printed codes keep working even if this site goes away.</p>
-  </div>
 
   <div class="info">
     <h2>Good to know</h2>
     <ul class="notes">
-      <li><strong>Your key is the only way to make changes.</strong> If you lose it, your codes keep working but can’t be pointed anywhere new. Nobody can recover it for you, so also keep its recovery phrase (24 words) on paper.</li>
-      <li><strong>Lock what’s private.</strong> With Password protect on, people need the password to see where a link goes or what a page says. Without it, a link works like a printed sign: anyone can see where it points. Link names always stay visible.</li>
+      <li><strong>Don’t lose your key.</strong> It’s the only way to make changes. If you do lose it, your codes keep working but can’t be altered. Nobody can recover it for you, so save it in your password manager and print the recovery phrase.</li>
+      <li><strong>Add a password to private links.</strong> With Password protect on, people need the password to see where a link goes or what a page says.</li>
       <li><strong>Changes usually go live within seconds,</strong> occasionally up to 20 minutes.</li>
-      <li><strong>More options</strong> on each link: count scans, turn it off on a date with a message, or send iPhones, Android phones or certain days and times somewhere else.</li>
+      <li>Each code points to a permanent page on Arweave, a network designed to store data indefinitely. Your printed codes keep working even if this site goes away.</li>
     </ul>
   </div>
   <nav class="site-footer" aria-label="More">
@@ -158,8 +165,8 @@
     </label>
     <details class="phrase-box">
       <summary>Paper backup: recovery phrase</summary>
-      <p class="muted small">The same key as 24 words, easier to write down. Keep it with important papers: if you lose your password manager,
-        sign in with these words instead. Anyone who has them can change your links.</p>
+      <p class="muted small">The same key as 24 words, just easier to write down. If you lose your key, you can sign in with these words.
+        Anyone with your key or recovery phrase can change your links.</p>
       <ol class="phrase" id="newkey-phrase"></ol>
       <button type="button" id="newkey-print">Print recovery sheet</button>
     </details>
@@ -206,7 +213,7 @@
             <label>Title or company <span class="muted">(optional)</span>
               <input id="create-contact-role" maxlength="100" autocomplete="off" placeholder="Owner, Rivera Bikes">
             </label>
-            <label>Phone <span class="muted">(optional; adds Call and Text buttons)</span>
+            <label>Phone <span class="muted">(optional)</span>
               <input id="create-contact-phone" type="tel" maxlength="40" autocomplete="off" placeholder="+1 555 010 0100">
             </label>
             <label>Email <span class="muted">(optional)</span>
@@ -215,7 +222,7 @@
             <label>Website <span class="muted">(optional)</span>
               <input id="create-contact-website" type="text" inputmode="url" maxlength="300" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="example.com">
             </label>
-            <label>Address <span class="muted">(optional; adds Directions)</span>
+            <label>Address <span class="muted">(optional)</span>
               <input id="create-contact-address" maxlength="300" autocomplete="off" placeholder="12 Main St, Springfield">
             </label>
           </div>
@@ -254,8 +261,8 @@
     <details class="card batch">
       <summary>Create several links at once</summary>
       <form id="batch-form">
-        <p class="muted">For codes you want to print before you know where they’ll go. Links are created without a destination;
-          set each one later with <strong>Set destination</strong>. Until then, scanning one shows “This link is turned off”.</p>
+        <p class="muted">For codes you want to print before you know where they’ll go. This is handy if, for example, you want to print a sheet of QR codes
+          before you know where each one will point. You can edit them after creation as you use them.</p>
         <div class="batch-fields">
           <label>How many
             <input id="batch-count" type="number" inputmode="numeric" min="1" max="100" value="10" required>
@@ -362,7 +369,7 @@
           <label>Title or company <span class="muted">(optional)</span>
             <input id="edit-contact-role" maxlength="100" autocomplete="off" placeholder="Owner, Rivera Bikes">
           </label>
-          <label>Phone <span class="muted">(optional; adds Call and Text buttons)</span>
+          <label>Phone <span class="muted">(optional)</span>
             <input id="edit-contact-phone" type="tel" maxlength="40" autocomplete="off" placeholder="+1 555 010 0100">
           </label>
           <label>Email <span class="muted">(optional)</span>
@@ -371,7 +378,7 @@
           <label>Website <span class="muted">(optional)</span>
             <input id="edit-contact-website" type="text" inputmode="url" maxlength="300" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="example.com">
           </label>
-          <label>Address <span class="muted">(optional; adds Directions)</span>
+          <label>Address <span class="muted">(optional)</span>
             <input id="edit-contact-address" maxlength="300" autocomplete="off" placeholder="12 Main St, Springfield">
           </label>
         </div>

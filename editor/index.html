@@ -29,6 +29,7 @@
 <link rel="modulepreload" href="config.js">
 <link rel="modulepreload" href="page.js">
 <link rel="modulepreload" href="lock.js">
+<link rel="modulepreload" href="phrase.js">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6bcb'/%3E%3Cpath d='M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM10 10h2v2h-2z' fill='white'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -53,6 +54,15 @@
     </label>
     <p class="error" id="login-error" hidden></p>
     <button class="primary" type="submit" data-needs-js disabled>Sign in</button>
+  </form>
+
+  <p class="center small" id="phrase-row"><button id="use-phrase" class="link" type="button" data-needs-js disabled>Sign in with a recovery phrase instead</button></p>
+  <form id="phrase-form" class="card" hidden>
+    <label class="form-title">Sign in with your recovery phrase
+      <textarea id="phrase-input" rows="4" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="24 words, separated by spaces"></textarea>
+    </label>
+    <p class="error" id="phrase-error" hidden></p>
+    <button class="primary" type="submit">Sign in</button>
   </form>
 
   <p class="center" id="new-key-row"><button id="new-key" class="link" type="button" data-needs-js disabled>Create a key</button>
@@ -112,7 +122,7 @@
   <div class="info">
     <h2>Good to know</h2>
     <ul class="notes">
-      <li><strong>Your key is the only way to make changes.</strong> If you lose it, your codes keep working but can’t be pointed anywhere new. Nobody can recover it for you.</li>
+      <li><strong>Your key is the only way to make changes.</strong> If you lose it, your codes keep working but can’t be pointed anywhere new. Nobody can recover it for you, so also keep its recovery phrase (24 words) on paper.</li>
       <li><strong>Lock what’s private.</strong> With Password protect on, people need the password to see where a link goes or what a page says. Without it, a link works like a printed sign: anyone can see where it points. Link names always stay visible.</li>
       <li><strong>Changes usually go live within seconds,</strong> occasionally up to 20 minutes.</li>
     </ul>
@@ -143,6 +153,13 @@
         <button type="button" id="newkey-copy">Copy</button>
       </span>
     </label>
+    <details class="phrase-box">
+      <summary>Paper backup: recovery phrase</summary>
+      <p class="muted small">The same key as 24 words, easier to write down. Keep it with important papers: if you lose your password manager,
+        sign in with these words instead. Anyone who has them can change your links.</p>
+      <ol class="phrase" id="newkey-phrase"></ol>
+      <button type="button" id="newkey-print">Print recovery sheet</button>
+    </details>
     <label class="check"><input type="checkbox" required> I’ve saved this key somewhere safe</label>
     <button class="primary" type="submit">Continue</button>
     <button class="link" type="button" id="newkey-cancel">Back</button>
@@ -153,7 +170,7 @@
   <header>
     <strong>PermaPath</strong>
     <span class="muted" id="account"></span>
-    <button class="header-btn" id="copy-key" type="button">Copy key</button>
+    <button class="header-btn" id="your-key" type="button">Your key</button>
     <button class="header-btn" id="signout" type="button">Sign out</button>
   </header>
 
@@ -342,6 +359,37 @@
     </div>
   </form>
 </dialog>
+
+<dialog id="key-dialog">
+  <form method="dialog" class="dialog-body">
+    <h2>Your key</h2>
+    <p class="small">Your key is the only way to change your links. Keep it in your password manager, and keep a paper backup in case you lose that.</p>
+    <div class="row">
+      <button type="button" id="copy-key">Copy key</button>
+      <button type="button" id="show-phrase">Show recovery phrase</button>
+    </div>
+    <div id="key-phrase-box" hidden>
+      <p class="muted small">The same key as 24 words. Write them down or print them, and keep them somewhere safe. Anyone who has them can change your links.</p>
+      <ol class="phrase" id="key-phrase"></ol>
+      <button type="button" id="key-print">Print recovery sheet</button>
+    </div>
+    <button class="primary" value="close">Done</button>
+  </form>
+</dialog>
+
+<!-- Only shown when printing a recovery sheet (see printSheet in app.js). -->
+<section id="print-sheet" hidden>
+  <h1>PermaPath recovery sheet</h1>
+  <p>Printed <span id="sheet-date"></span> · Public ID <span class="mono" id="sheet-id"></span></p>
+  <p><strong>Anyone with this sheet can change your links.</strong> Keep it somewhere safe, like with your important papers.</p>
+  <h2>Recovery phrase</h2>
+  <ol class="phrase" id="sheet-phrase"></ol>
+  <h2>Key</h2>
+  <p class="mono" id="sheet-key"></p>
+  <p>To sign in, go to <strong>permapath.link</strong> and choose “Sign in with a recovery phrase instead”, then type the 24 words
+    (the first four letters of each word are enough). Or paste the key into “Sign in with your key”. Both do the same thing.</p>
+  <p>Your codes keep working without this sheet. You only need it to change where they point.</p>
+</section>
 
 <noscript><p class="narrow">PermaPath needs JavaScript.</p></noscript>
 <script type="module" src="app.js"></script>

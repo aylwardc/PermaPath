@@ -195,3 +195,20 @@ input.switch-input:focus-visible { outline: 2px solid var(--accent); outline-off
 button.link:disabled { opacity: .5; text-decoration: none; }
 
 .header-btn { font-size: .85rem; padding: .3rem .65rem; border-radius: 6px; flex: none; }
+
+.phrase-box { margin: 0 0 1rem; }
+.phrase-box summary { cursor: pointer; font-weight: 600; }
+.phrase-box[open] summary { margin-bottom: .5rem; }
+.phrase { columns: 3; column-gap: 1rem; margin: .5rem 0 1rem; padding-left: 2rem; font-family: ui-monospace, Menlo, monospace; font-size: .9rem; }
+.phrase li { padding: .1rem 0; break-inside: avoid; }
+@media (max-width: 480px) { .phrase { columns: 2; } }
+#phrase-row { margin: -.25rem 0 .5rem; }
+#key-phrase-box { margin-top: .75rem; }
+
+/* Recovery sheet: printing it hides everything else. */
+@media print {
+  body.print-sheet > :not(#print-sheet) { display: none !important; }
+  body.print-sheet #print-sheet { display: block !important; color: #000; background: #fff; font-size: 12pt; }
+  #print-sheet .phrase { columns: 3; font-size: 13pt; }
+  #print-sheet .mono { word-break: break-all; }
+}

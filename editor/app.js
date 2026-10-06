@@ -5,6 +5,7 @@ import { RESOLVER_BASE } from './config.js';
 import { buildPageHtml, parsePageHtml, pageBytes, compressImage, PAGE_MAX_BYTES, LOCKED_PAGE_MAX } from './page.js';
 import { buildLockedHtml, parseLockedHtml, openLocked, passwordAdvice, suggestPassphrase } from './lock.js';
 import { APP_NAME } from './arweave.js';
+import { keyToPhrase, phraseToKey } from './phrase.js';
 
 const $ = (id) => document.getElementById(id);
 const PENDING_SLOW_MS = 30 * 60_000;
@@ -177,6 +178,7 @@ $('login-form').addEventListener('submit', async (e) => {
 $('new-key').addEventListener('click', () => {
   $('newkey-key').value = generateKeyText();
   $('newkey-key').type = 'password';
+  keyToPhrase($('newkey-key').value).then((phrase) => fillPhrase($('newkey-phrase'), phrase));
   $('newkey-show').textContent = 'Show';
   show('newkey');
 });
@@ -187,6 +189,58 @@ $('newkey-show').addEventListener('click', () => {
 });
 $('newkey-copy').addEventListener('click', (e) => copy($('newkey-key').value, e.currentTarget));
 $('newkey-cancel').addEventListener('click', () => show('signin'));
+
+$('use-phrase').addEventListener('click', () => {
+  $('phrase-form').hidden = false;
+  $('phrase-row').hidden = true;
+  $('phrase-input').focus();
+});
+$('phrase-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showError($('phrase-error'), null);
+  try {
+    await signIn(await phraseToKey($('phrase-input').value));
+    $('phrase-input').value = '';
+  } catch (err) {
+    showError($('phrase-error'), err);
+  }
+});
+
+// ---------- recovery phrase (the same key as 24 words) ----------
+
+const fillPhrase = (list, phrase) => list.replaceChildren(...phrase.split(' ').map((w) => h('li', {}, w)));
+
+// Prints a sheet with the phrase and key, hiding the rest of the page.
+async function printSheet(text) {
+  const k = await loadKey(text);
+  fillPhrase($('sheet-phrase'), await keyToPhrase(text));
+  $('sheet-key').textContent = text.trim();
+  $('sheet-id').textContent = k.owners[0];
+  $('sheet-date').textContent = new Date().toLocaleDateString(undefined, { dateStyle: 'long' });
+  document.body.classList.add('print-sheet');
+  // Dialogs sit in the top layer and would print over the sheet.
+  for (const d of document.querySelectorAll('dialog[open]')) d.close();
+  window.print();
+  // Leave the sheet's contents in place only for the print.
+  setTimeout(() => {
+    document.body.classList.remove('print-sheet');
+    for (const id of ['sheet-phrase', 'sheet-key', 'sheet-id']) $(id).replaceChildren();
+  }, 1000);
+}
+
+$('newkey-print').addEventListener('click', () => printSheet($('newkey-key').value));
+$('your-key').addEventListener('click', () => {
+  $('key-phrase-box').hidden = true;
+  $('show-phrase').hidden = false;
+  $('key-phrase').replaceChildren();
+  $('key-dialog').showModal();
+});
+$('show-phrase').addEventListener('click', async () => {
+  fillPhrase($('key-phrase'), await keyToPhrase(keyText));
+  $('key-phrase-box').hidden = false;
+  $('show-phrase').hidden = true;
+});
+$('key-print').addEventListener('click', () => printSheet(keyText));
 $('newkey-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   await signIn($('newkey-key').value);

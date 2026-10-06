@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/rOhQEdtC90YR9Do5omV4oj3npKIO4Jb27bJZzoEooDU/
+  directly: https://arweave.net/4yJTx4tIXDi6-iLxShXZl2_QpUsT-ZSq3YWRe-gh6pc/
 - **Resolver:** https://arweave.net/baTff-gv4xpkwCqAJpmF9fMBF2ABEvQmjA_Rbhxn7gg
   (`RESOLVER_TX` in `editor/config.js`)
 
@@ -49,7 +49,8 @@ registry: just Arweave data items and gateway GraphQL.
   forwards the scan to that newer resolver page (max 3 hops). Only the link's owner
   can set it; the editor carries it forward on later edits.
 - **Keys:** Ed25519 seeds, base58-encoded (~44 chars), kept in the user's password
-  manager. Data items use ANS-104 signature type 4 (Turbo's "solana" format).
+  manager, with an optional 24-word recovery phrase (the same seed in BIP39 words, plus a
+  checksum) as a paper backup; `editor/phrase.js`. Data items use ANS-104 signature type 4 (Turbo's "solana" format).
   Uploads go to Turbo directly from the browser and are free under 100 KiB. If Turbo is
   unreachable, failing, rate limiting or asks for payment, uploads fall back to
   `up.arweave.net` (also free for small items; changes then take a few minutes to appear).

@@ -39,8 +39,29 @@ async function put(key, bytes, contentType, extraTags = []) {
   return item.id;
 }
 
+// What a deploy cost in Turbo credits, from the balance before and after.
+const PAYMENT = 'https://payment.ardrive.io/v1';
+async function credits(address) {
+  try {
+    const [balance, rates] = await Promise.all([
+      fetch(`${PAYMENT}/account/balance/solana?address=${address}`).then((r) => r.json()),
+      fetch(`${PAYMENT}/rates`).then((r) => r.json()),
+    ]);
+    const usdPerWinc = rates.fiat.usd / Number(rates.winc);
+    return { winc: Number(balance.winc), usd: Number(balance.winc) * usdPerWinc, usdPerWinc };
+  } catch {
+    return null;
+  }
+}
+const money = (usd) => `$${usd < 0.01 ? usd.toFixed(5) : usd.toFixed(2)}`;
+
 const what = process.argv[2];
 const key = await deployKey();
+const before = await credits(key.owners[0]);
+async function reportCost() {
+  const after = before && await credits(key.owners[0]);
+  if (after) console.log(`Turbo credits: this deploy cost ${money((before.winc - after.winc) * after.usdPerWinc)}; ${money(after.usd)} left.`);
+}
 
 if (what === 'resolver') {
   const html = fs.readFileSync(path.join(root, 'resolver/index.html'));
@@ -48,6 +69,7 @@ if (what === 'resolver') {
   const configFile = path.join(root, 'editor/config.js');
   fs.writeFileSync(configFile, fs.readFileSync(configFile, 'utf8').replace(/RESOLVER_TX = '[^']*'/, `RESOLVER_TX = '${id}'`));
   console.log(`resolver: https://arweave.net/${id}\neditor/config.js updated — redeploy the editor.`);
+  await reportCost();
 } else if (what === 'editor') {
   const dir = path.join(root, 'editor');
   const files = fs.readdirSync(dir, { recursive: true }).filter((f) => fs.statSync(path.join(dir, f)).isFile());
@@ -72,6 +94,7 @@ if (what === 'resolver') {
   const workerFile = path.join(root, 'worker/src/index.js');
   fs.writeFileSync(workerFile, fs.readFileSync(workerFile, 'utf8').replace(/EDITOR_TX = '[^']*'/, `EDITOR_TX = '${id}'`));
   console.log(`editor: https://arweave.net/${id}/\nworker/src/index.js updated: run \`cd worker && npx wrangler deploy\` to serve it on permapath.link.`);
+  await reportCost();
 } else {
   console.error('usage: node scripts/deploy.mjs resolver|editor');
   process.exit(1);

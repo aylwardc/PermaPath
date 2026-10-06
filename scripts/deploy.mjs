@@ -59,7 +59,10 @@ if (what === 'resolver') {
   paths['cli.mjs'] = { id: await put(key, fs.readFileSync(path.join(root, 'dist/cli.mjs')), 'text/javascript') };
   console.log(`  cli.mjs (bundled) → ${paths['cli.mjs'].id}`);
   const manifest = { manifest: 'arweave/paths', version: '0.2.0', index: { path: 'index.html' }, paths };
-  const id = await put(key, new TextEncoder().encode(JSON.stringify(manifest)), 'application/x.arweave-manifest+json', [{ name: 'Type', value: 'editor' }]);
+  // Deploy-Time gives every deploy a new address, even with identical files
+  // (signatures are deterministic), so a redeploy never reuses edge-cached URLs.
+  const id = await put(key, new TextEncoder().encode(JSON.stringify(manifest)), 'application/x.arweave-manifest+json',
+    [{ name: 'Type', value: 'editor' }, { name: 'Deploy-Time', value: String(Date.now()) }]);
   const workerFile = path.join(root, 'worker/src/index.js');
   fs.writeFileSync(workerFile, fs.readFileSync(workerFile, 'utf8').replace(/EDITOR_TX = '[^']*'/, `EDITOR_TX = '${id}'`));
   console.log(`editor: https://arweave.net/${id}/\nworker/src/index.js updated: run \`cd worker && npx wrangler deploy\` to serve it on permapath.link.`);

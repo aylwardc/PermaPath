@@ -7,20 +7,38 @@ import fs from 'node:fs';
 const src = fs.readFileSync(new URL('../worker/src/index.js', import.meta.url), 'utf8');
 const tx = src.match(/EDITOR_TX = '([^']+)'/)[1];
 const gateways = JSON.parse(src.match(/const GATEWAYS = (\[[^\]]*\])/)[1].replace(/'/g, '"')).filter((g) => !g.includes('arweave.net'));
-const files = ['', 'app.js', 'styles.css', 'config.js'];
-
-for (const gateway of gateways) {
-  const results = await Promise.all(files.map(async (f) => {
-    try {
-      return (await fetch(`${gateway}/${tx}/${f}`, { signal: AbortSignal.timeout(15_000) })).ok;
-    } catch {
-      return false;
-    }
-  }));
-  if (results.every(Boolean)) {
-    console.log(`editor ${tx} is served by ${new URL(gateway).host}; OK to deploy the Worker.`);
-    process.exit(0);
+const ok = async (url) => {
+  try {
+    return (await fetch(url, { signal: AbortSignal.timeout(15_000) })).ok;
+  } catch {
+    return false;
   }
+};
+
+// Every file in the editor's manifest must be served by at least one of the
+// Worker's gateways (it tries them in order, per file).
+let manifest = null;
+for (const gateway of gateways) {
+  try {
+    const res = await fetch(`${gateway}/raw/${tx}`, { signal: AbortSignal.timeout(15_000) });
+    if (res.ok) { manifest = await res.json(); break; }
+  } catch { /* next gateway */ }
 }
-console.error(`editor ${tx} isn't served by ${gateways.map((g) => new URL(g).host).join(' or ')} yet. Wait a few minutes and try again.`);
+// The gateways fail now and then even for old files, so retry before calling one missing.
+async function served(f) {
+  for (let round = 0; round < 3; round++) {
+    for (const g of gateways) if (await ok(`${g}/${tx}/${f}`)) return true;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  return false;
+}
+const files = manifest ? ['', ...Object.keys(manifest.paths)] : null;
+const missing = files
+  ? (await Promise.all(files.map(async (f) => (await served(f) ? null : f || 'index')))).filter(Boolean)
+  : ['the manifest'];
+if (!missing.length) {
+  console.log(`editor ${tx}: all ${files.length} files served; OK to deploy the Worker.`);
+  process.exit(0);
+}
+console.error(`editor ${tx}: not served yet by ${gateways.map((g) => new URL(g).host).join(' or ')}: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '…' : ''}. Wait a few minutes and try again.`);
 process.exit(1);

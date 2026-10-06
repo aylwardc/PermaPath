@@ -49,6 +49,11 @@ test('time windows can span midnight; from == until is all day', () => {
   for (const [iso, want] of [['T21:59', 'default'], ['T22:00', 'late'], ['T01:59', 'late'], ['T02:00', 'default']]) {
     assert.equal(pick(late, { now: at(`2026-10-07${iso}:00Z`), os: 'other' }), `https://${want}.example/`, iso);
   }
+  // Friday night until 2am: 01:00 on Saturday is still Friday's window; 01:00 on Friday is Thursday's.
+  const friday = record([{ days: '5', from: '22:00', until: '02:00', to: 'https://late.example/' }], { 'Time-Zone': 'UTC' });
+  assert.equal(pick(friday, { now: at('2026-10-09T23:00:00Z'), os: 'other' }), 'https://late.example/', 'Fri 23:00');
+  assert.equal(pick(friday, { now: at('2026-10-10T01:00:00Z'), os: 'other' }), 'https://late.example/', 'Sat 01:00');
+  assert.equal(pick(friday, { now: at('2026-10-09T01:00:00Z'), os: 'other' }), 'https://default.example/', 'Fri 01:00');
   const all = record([{ from: '09:00', until: '09:00', to: 'https://all.example/' }], { 'Time-Zone': 'UTC' });
   assert.equal(pick(all, { now: at('2026-10-07T03:00:00Z'), os: 'other' }), 'https://all.example/');
 });

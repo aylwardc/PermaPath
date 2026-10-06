@@ -34,6 +34,7 @@
                 "os":     "ios" | "android"
                 "after":  Unix ms (inclusive)     "before": Unix ms (exclusive)
                 "days":   "12345" (0 = Sunday)    "from"/"until": "HH:MM"
+              A window past midnight (22:00-02:00) belongs to the day it starts.
               Days and times use the Time-Zone tag (IANA name, e.g.
               America/New_York), or the phone's own clock without one. A rule
               with a condition this page doesn't know is skipped.
@@ -101,15 +102,18 @@ var PP_ROUTING = (function () {
     if (rule.before != null && !(ctx.now < Number(rule.before))) return false;
     if (rule.days != null || rule.from != null || rule.until != null) {
       var c = clock(ctx.now, ctx.tz);
-      if (rule.days != null && String(rule.days).indexOf(String(c.day)) < 0) return false;
+      var day = c.day;
       if (rule.from != null || rule.until != null) {
         var from = rule.from == null ? 0 : minutes(rule.from);
         var until = rule.until == null ? 24 * 60 : minutes(rule.until);
         if (from == null || until == null) return false;
-        // from > until spans midnight (22:00-02:00); from == until is all day.
+        // from > until spans midnight (22:00-02:00): after midnight it still
+        // counts as the day it started. from == until is all day.
         var inside = from < until ? (c.min >= from && c.min < until) : from > until ? (c.min >= from || c.min < until) : true;
         if (!inside) return false;
+        if (from > until && c.min < until) day = (day + 6) % 7;
       }
+      if (rule.days != null && String(rule.days).indexOf(String(day)) < 0) return false;
     }
     return true;
   }

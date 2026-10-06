@@ -250,3 +250,7 @@ select { display: block; width: 100%; max-width: 100%; margin-top: .3rem; paddin
 .pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .hint { display: block; margin-top: .35rem; font-weight: normal; }
 .time-rule .hint { margin: -.4rem 0 .8rem; }
+.button-link.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.test-print { margin-top: 1.5rem; }
+.test-print .row { margin: .75rem 0; }
+.test-print .button-link { flex: 1 1 12rem; text-align: center; }

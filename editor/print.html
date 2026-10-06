@@ -3,95 +3,78 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QR code print test · PermaPath</title>
-<meta name="description" content="Print this page to see how small a PermaPath QR code can be and still scan, with a credit card and coins to check your printer's scale.">
+<title>Printing QR codes · PermaPath</title>
+<meta name="description" content="How big to print a QR code, how to make stickers and signs that scan, and a free test page to check what size works for you.">
 <link rel="canonical" href="https://permapath.link/print.html">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PermaPath">
+<meta property="og:title" content="Printing QR codes · PermaPath">
+<meta property="og:description" content="How big to print a QR code, how to make stickers and signs that scan, and a free test page to check what size works for you.">
+<meta property="og:url" content="https://permapath.link/print.html">
+<meta property="og:image" content="https://permapath.link/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="PermaPath: links that never die. QR codes you never have to reprint.">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0b6bcb">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6bcb'/%3E%3Cpath d='M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM10 10h2v2h-2z' fill='white'/%3E%3C/svg%3E">
-<style>
-  /* Everything is sized in real units (in, mm) so the printout can be measured.
-     Fits Letter and A4 with 0.5in margins: 7.27in wide, 10in tall per page. */
-  @page { margin: .5in; }
-  .sheet { width: 7.27in; margin: 0 auto; background: #fff; color: #000; font: 10pt/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .sheet h1 { font-size: 16pt; margin: 0 0 .05in; }
-  .sheet h2 { font-size: 11pt; margin: .18in 0 .08in; }
-  .sheet p { margin: 0 0 .06in; }
-  .sheet .muted { color: #555; }
-  .page { padding: .1in 0; }
-  .page + .page { break-before: page; }
-
-  .scale { display: flex; gap: .3in; align-items: flex-start; }
-  .card { width: 85.6mm; height: 53.98mm; border: .3mm solid #000; border-radius: 3.18mm; display: flex; flex-direction: column; justify-content: space-between; padding: 3mm 4mm; font-size: 8pt; }
-  .card .chip { width: 11mm; height: 8.5mm; border: .3mm solid #000; border-radius: 1.5mm; margin-top: 5mm; }
-  .coins { display: grid; grid-template-columns: repeat(3, auto); gap: .1in .18in; align-items: end; }
-  .coin { text-align: center; font-size: 7pt; line-height: 1.2; }
-  .coin .disc { border: .3mm solid #000; border-radius: 50%; margin: 0 auto 1mm; }
-  .ruler { margin-top: .15in; }
-  .ruler svg { display: block; }
-
-  .codes { display: flex; flex-wrap: wrap; gap: .25in .25in; align-items: flex-end; justify-content: space-between; }
-  .code { break-inside: avoid; }
-  #codes-large { display: flex; flex-direction: column; align-items: center; gap: .15in; }
-  .page > h2:first-child { margin-top: 0; }
-  #codes-large .codes { gap: .5in; justify-content: center; }
-  .code { text-align: center; font-size: 7.5pt; line-height: 1.25; }
-  .code svg { display: block; margin: 0 auto .04in; }
-  .code b { font-size: 8.5pt; }
-  .full { text-align: center; }
-  .full svg { display: block; margin: .15in auto .1in; }
-
-  /* On screen: a paper preview with the print button above it. */
-  @media screen {
-    body { background: var(--bg); }
-    .toolbar { max-width: 7.27in; margin: 1.5rem auto 1rem; padding: 0 16px; }
-    .toolbar p { color: var(--muted); }
-    .page { box-shadow: 0 1px 4px rgb(0 0 0 / .2); margin: 0 auto 1.5rem; padding: .5in; width: 8.27in; box-sizing: border-box; }
-    .sheet { width: auto; }
-    .page > * { max-width: 7.27in; margin-left: auto; margin-right: auto; }
-  }
-  @media print { .toolbar { display: none; } body { background: #fff; } }
-</style>
 </head>
 <body>
-<div class="toolbar">
-  <h1>QR code print test</h1>
-  <p>Print this to see how small your codes can be. Choose <strong>Actual size</strong> or <strong>100%</strong> (not “Fit to page”), then check the
-    credit card and coins against real ones. If they match, every size below is exact.</p>
-  <p><button class="primary" type="button" onclick="print()">Print test page</button> <a href="./">Back to PermaPath</a></p>
-</div>
+<main class="landing">
+  <p class="small"><a href="./">← PermaPath</a></p>
+  <h1>Printing QR codes</h1>
+  <p class="lede">Print once, scan for years.</p>
+  <p class="intro">A few habits make the difference between a code that scans instantly and one people give up on. Not sure what size you need? Print the test page and try it with your own phone.</p>
 
-<main class="sheet">
-  <section class="page">
-    <h1>PermaPath QR code print test</h1>
-    <p>Printed at 100%? A real credit card should cover the card outline exactly, and real coins the circles. If not, set the print scale to
-      <strong>Actual size / 100%</strong> and print again.</p>
-
-    <h2>Scale check</h2>
-    <div class="scale">
-      <div class="card"><span><b>Credit card</b> 85.6 × 54 mm (3.37 × 2.13 in)</span><span class="chip"></span><span class="muted">Any bank, ID or gift card is this size.</span></div>
-      <div class="coins" id="coins"></div>
+  <div class="card test-print">
+    <h2>Free test page</h2>
+    <p>Real PermaPath codes from ½ inch to a full page, with how far away each one scans. A credit-card outline, coins and a ruler show whether your printer printed at the right size.</p>
+    <div class="row">
+      <a class="button-link" href="print-test-letter.pdf" target="_blank" rel="noopener">Test page (US Letter)</a>
+      <a class="button-link secondary" href="print-test-a4.pdf" target="_blank" rel="noopener">Test page (A4)</a>
     </div>
-    <div class="ruler" id="ruler"></div>
+    <p class="muted small">Opens a PDF. Print it at 100% or “Actual size”, not “Fit to page”, then hold a card or coin up to the outlines to check.</p>
+  </div>
 
-    <h2>How small can it be?</h2>
-    <p>Scan each code with your phone. All of them open <strong>permapath.link</strong> and work like any PermaPath code. The size is the black square;
-      the white border around it is part of the code, so leave it on when you cut or place it.</p>
-    <div class="codes" id="codes-small"></div>
-    <p class="muted" id="density" style="margin-top:.15in"></p>
-  </section>
+  <div class="info">
+    <h2>Size</h2>
+    <ul class="notes">
+      <li><strong>Make it a tenth of the scanning distance.</strong> A code people scan from 10 inches away should be about 1 inch wide; one read from 10 feet away, about 1 foot.</li>
+      <li><strong>¾ inch (2 cm) is a comfortable minimum</strong> for things held in the hand, like stickers, tags and labels. ½ inch works on newer phones, but some older ones struggle.</li>
+      <li><strong>Go bigger for signs.</strong> 3–4 inches on a poster or window, 6 inches or more for anything read across a room or from the street.</li>
+    </ul>
+  </div>
 
-  <section class="page">
-    <h2>Bigger: signs and posters</h2>
-    <div class="codes" id="codes-large"></div>
-  </section>
+  <div class="info">
+    <h2>Make it easy to scan</h2>
+    <ul class="notes">
+      <li><strong>Keep the white border.</strong> The quiet space around the code is part of it. Don’t crop it, and don’t place the code right against an edge, a busy background or other print.</li>
+      <li><strong>Dark on light.</strong> Black on white is safest. Colors are fine if the code is much darker than its background. Don’t invert it to light on dark; some phones won’t read that.</li>
+      <li><strong>Flat and matte.</strong> Glossy finishes and laminate can glare under lights. A tight curve, like a narrow bottle, can distort the code; put it on the flattest spot.</li>
+      <li><strong>Say what it’s for.</strong> A few words next to the code, like “Scan for the menu”, get far more scans than a code alone.</li>
+      <li><strong>Test before printing a lot.</strong> Print one, scan it with an iPhone and an Android phone from the distance people will actually be at, then print the rest.</li>
+    </ul>
+  </div>
 
-  <section class="page">
-    <div class="full" id="full"></div>
-  </section>
+  <div class="info">
+    <h2>Stickers and labels</h2>
+    <ul class="notes">
+      <li><strong>Download the SVG</strong> for print shops and design tools: it stays sharp at any size. The PNG is fine for home printing up to about 8 inches.</li>
+      <li><strong>Many codes at once:</strong> create them in a batch, export the CSV, and use its <em>qr_url</em> column with a label tool that makes QR codes from a spreadsheet, such as Avery’s.</li>
+      <li><strong>Indoors,</strong> paper labels are fine. <strong>Outdoors or on things that get wet,</strong> use waterproof vinyl stickers, ideally with a UV-resistant laminate, or engraved or etched metal for plaques.</li>
+      <li><strong>Engraving and etching</strong> work well when the marks are deep and clean. Make the code larger than you would print it, at least 1 inch, and test one first.</li>
+      <li><strong>Print before you know the destination:</strong> a batch of codes can go on stickers now and be pointed somewhere later.</li>
+    </ul>
+  </div>
+
+  <div class="info">
+    <h2>Why PermaPath codes are a little denser</h2>
+    <p>A PermaPath code holds a full permanent address on Arweave, about 110 characters, so it has a few more squares than a code for a short link. That’s what lets it keep working even if PermaPath disappears. In practice it only matters below about ¾ inch; the test page shows exactly where your phone stops reading them.</p>
+  </div>
+
+  <p class="center footer-note"><a class="button-link" href="./">Make a QR code →</a></p>
 </main>
-
-<script type="module" src="print.js"></script>
 </body>
 </html>

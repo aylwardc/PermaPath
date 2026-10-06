@@ -86,7 +86,8 @@ export const carry = (s) => ({
 // Full state goes in every record, so the newest record alone describes the link.
 // A link with no destination yet ("not set up", e.g. pre-printed batches) is
 // created turned off, so scans show the resolver's "turned off" message.
-// kind: '' for a web address, 'page' for a PermaPath hosted page, 'locked' for a
+// kind: '' for a web address, 'page' for a PermaPath hosted page, 'contact' for a
+// contact card (a hosted page with a vCard), 'locked' for a
 // password-protected locked page (editor hint only; resolvers ignore it).
 export function linkTags({ destination, name, disabled, kind, seq, ...v3 }) {
   return [
@@ -145,7 +146,7 @@ const toState = (id, created, tags) => ({
   name: tags.Name || '',
   disabled: tags.Disabled === 'true',
   resolver: tags.Resolver || '',
-  kind: tags.Kind === 'page' || tags.Kind === 'locked' ? tags.Kind : '',
+  kind: ['page', 'locked', 'contact'].includes(tags.Kind) ? tags.Kind : '',
   count: tags.Count === 'true',
   message: tags.Message || '',
   offAt: /^\d{1,16}$/.test(tags['Off-At'] || '') ? Number(tags['Off-At']) : 0,

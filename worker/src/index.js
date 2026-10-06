@@ -3,7 +3,7 @@
 // visited directly, which would stop password managers autofilling keys and
 // drop the editor's local state. QR codes never point here.
 // EDITOR_TX is set by `node scripts/deploy.mjs editor`.
-export const EDITOR_TX = 'OxI0QUeryz5GE2JwJIuqSJbUBYEuXx1j7UGK8QQYtjw';
+export const EDITOR_TX = 'xJg3dMmr4ckBvyQUZ2cfJd1sGaM8ObZE4XpIj1TeKyQ';
 // Tried in order. arweave.net may refuse requests from Cloudflare Workers, so
 // fall back to other gateways that serve path manifests.
 const GATEWAYS = ['https://arweave.net', 'https://turbo-gateway.com', 'https://ardrive.net'];

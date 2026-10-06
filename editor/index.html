@@ -173,6 +173,7 @@
   <header>
     <strong>PermaPath</strong>
     <span class="muted" id="account"></span>
+    <a class="header-btn" id="tips-link" href="print.html" target="_blank" rel="noopener">Printing tips</a>
     <button class="header-btn" id="your-key" type="button">Your key</button>
     <button class="header-btn" id="signout" type="button">Sign out</button>
   </header>
@@ -280,6 +281,10 @@
 
     <div class="list-head">
       <h2>Your links</h2>
+      <span class="seg view-toggle" role="group" aria-label="Show links as">
+        <label><input type="radio" name="links-view" value="list" checked><span>List</span></label>
+        <label><input type="radio" name="links-view" value="table"><span>Table</span></label>
+      </span>
       <span class="row tight">
         <button id="import-open" type="button">Import CSV</button>
         <button id="export-csv" type="button">Export CSV</button>
@@ -288,6 +293,7 @@
     </div>
     <p class="muted" id="list-status"></p>
     <ul id="links"></ul>
+    <div id="links-table" class="table-scroll" hidden></div>
   </main>
 </section>
 

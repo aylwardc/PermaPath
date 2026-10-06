@@ -116,7 +116,8 @@ await updateLink(key, id, { destination: 'https://example.com/v2' });
 npm ci
 npm test                         # unit tests, offline
 node test/make-fixtures.mjs      # once: real links for the resolver test (wait ~10 min)
-node test/browser.mjs            # live browser tests (real uploads, free)
+node test/browser.mjs            # browser tests; editor tests use a fake Arweave (test/fake-arweave.mjs)
+LIVE=1 node test/browser.mjs editor     # editor tests against the real network (before a release)
 WORKER=1 node test/browser.mjs editor   # editor tests served through the Worker
 BROWSER=webkit node test/browser.mjs    # same tests on WebKit (Safari's engine)
 cd editor && python3 -m http.server 8090   # run the editor locally

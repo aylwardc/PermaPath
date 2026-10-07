@@ -744,7 +744,7 @@ if (which === 'all' || which === 'editor') {
         { sturdy: true, style: 'rounded' }, { transparent: true, style: 'rounded' },
         { frame: 'square' }, { frame: 'rounded', label: 'Scan for the menu' }, { frame: 'bar', fg: '#1d3557' }, { frame: 'bar', transparent: true },
         { icon: 'coffee' }, { icon: 'menu', style: 'rounded', frame: 'bar', label: 'Menu' }, { icon: 'calendar', fg: '#264653', bg: '#f1faee' },
-        { icon: 'heart', centerSize: 32 }, { logo: 'https://arweave.net/' + 'L'.repeat(43), centerSize: 32, style: 'rounded' }, { icon: 'star', centerSize: 16 },
+        { icon: 'heart', centerSize: 32 }, { icon: 'pay', centerSize: 28, style: 'rounded' }, { logo: 'https://arweave.net/' + 'L'.repeat(43), centerSize: 32, style: 'rounded' }, { icon: 'star', centerSize: 16 },
       ];
       const out = [];
       for (const d of designs) {

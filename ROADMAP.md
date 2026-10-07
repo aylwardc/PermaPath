@@ -29,6 +29,7 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
   - Shipped: single-file CLI at permapath.link/cli.mjs, with `llms.txt` instructions to use a key the user provides (preferably a separate one).
   - Shipped 2026-10-07 on npm: `permapath` (CLI + library) and `permapath-mcp` (a *local* MCP server, key kept on the user's machine); `llms.txt` points at both. Releases are staged and approved by Chris with 2FA. Avoid a remote MCP connector that receives keys; read-only remote tools are fine.
   - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
+- **Payment links:** a "Payment" destination type that builds a Venmo, Cash App or PayPal link from a username and an optional amount and note (e.g. `https://venmo.com/USER?txn=pay&amount=10&note=…`). Works today by pasting such a link as a web address; this would only make it easier. Zelle has no public links.
 - **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
 
 ## Needs a new resolver (bundle these; only new codes get them, or old ones via the `Resolver` handoff tag)

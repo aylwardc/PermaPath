@@ -65,7 +65,7 @@ registry: just Arweave data items and gateway GraphQL.
   transparent, style: square|rounded, label, frame: square|rounded|bar, icon: <built-in name>, logo: https://arweave.net/<image>, sturdy }`.
   A logo, icon or `sturdy` uses error correction H (denser: 57 vs 45 modules). The rounded style
   draws the finder and alignment patterns solid; every style is decode-tested.
-- **Center icons:** 20 outline icons from Tabler Icons (MIT), vendored in `editor/vendor/icons.mjs`.
+- **Center icons:** 21 outline icons from Tabler Icons (MIT), vendored in `editor/vendor/icons.mjs`.
 - **Feature suggestions:** `suggest.html` (also pre-filled by AI assistants via
   `?source=ai&text=…`), `permapath suggest` and the MCP `suggest_feature` tool post to
   `/api/suggest`. The Worker keeps them privately in a `SuggestionBox` Durable Object (salted

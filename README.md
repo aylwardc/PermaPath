@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/IySXhTFLAytmOa5Zm3jBSR27faeLbEc5LTkvn--HGLs/
+  directly: https://arweave.net/5T4Muuq40PHAY17jdabqguy-Uu30pp1DXdC8s37_tMM/
 - **Resolver:** v3, https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE
   (`RESOLVER_TX` in `editor/config.js`). Older codes use v2 (`baTff…`) or v1 (`G81f…`)
   and forward to v3 when their owner uses a v3 feature.
@@ -120,9 +120,10 @@ await updateLink(key, id, { destination: 'https://example.com/v2' });
 **`permapath`** (the CLI as `npx permapath …`, and the library as `import … from 'permapath'`)
 and **`permapath-mcp`** (`mcp/server.mjs`, a local MCP server for Claude Desktop, ChatGPT
 desktop, Cursor and others; read-only tools without a key, create/update tools with
-`PERMAPATH_KEY`). Package READMEs live in `packages/`. `npm run publish:npm` publishes both
-(needs `NPM_TOKEN` in `.env`; `-- --dry` to check); bump `VERSION` in `scripts/build-npm.mjs`
-and `SERVER_INFO` in `mcp/server.mjs` first.
+`PERMAPATH_KEY`). Package READMEs live in `packages/`. Published on npm since 2026-10-07.
+`npm run publish:npm` stages both for approval on npmjs.com (needs a stage-only `NPM_STAGE_TOKEN`
+in `.env`; `-- --dry` to check); bump `VERSION` in `scripts/build-npm.mjs` and `SERVER_INFO` in
+`mcp/server.mjs` first.
 
 ## Develop
 

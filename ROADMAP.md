@@ -27,7 +27,7 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 
 - **Agent access** (no resolver change needed):
   - Shipped: single-file CLI at permapath.link/cli.mjs, with `llms.txt` instructions to use a key the user provides (preferably a separate one).
-  - Built 2026-10-07, not yet published (needs Chris's npm account and token): `permapath` (CLI + library) and `permapath-mcp` (a *local* MCP server, key kept on the user's machine). After publishing, point `llms.txt` at `npx permapath` and the MCP setup. Avoid a remote MCP connector that receives keys; read-only remote tools are fine.
+  - Shipped 2026-10-07 on npm: `permapath` (CLI + library) and `permapath-mcp` (a *local* MCP server, key kept on the user's machine); `llms.txt` points at both. Releases are staged and approved by Chris with 2FA. Avoid a remote MCP connector that receives keys; read-only remote tools are fine.
   - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
 - **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
 

@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import {
   generateKey, loadKey, recoveryPhrase, createLink, createBatch, listLinks, getLink, updateLink, linkUrl, linkQrSvg, linkStatus,
-  lockLink, unlockLink, revealLink, createPage, editPage, readPage, getScans,
+  lockLink, unlockLink, revealLink, createPage, editPage, readPage, getScans, uploadStatus, linkQrSvgDesigned,
 } from '../lib/permapath.js';
 
 const HELP = `PermaPath: QR codes you never have to reprint.
@@ -29,7 +29,8 @@ Usage: permapath <command> [options]
   off <link-id> | on <link-id>   Turn a link off or back on
   lock <link-id> --password P    Password-protect a link, or change its password
   unlock <link-id>               Remove password protection
-  qr <link-id>                   Print the link's QR code as SVG
+  qr <link-id> [--plain]         Print the link's QR code as SVG, with its saved
+                                 design (--plain: black on white)
   scans <link-id>                Scan count: total and per day (UTC)
   count <link-id> on|off         Turn scan counting on or off
   off-at <link-id> <date|none> [--message M]
@@ -60,7 +61,7 @@ function parse(argv) {
   const args = [], opts = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--json' || a === '--force' || a === '--no-photo' || a === '--no-count') opts[a.slice(2)] = true;
+    if (a === '--json' || a === '--force' || a === '--no-photo' || a === '--no-count' || a === '--plain') opts[a.slice(2)] = true;
     else if (a.startsWith('--')) {
       if (i + 1 >= argv.length) throw new Error(`${a} needs a value`);
       opts[a.slice(2)] = argv[++i];
@@ -229,7 +230,7 @@ async function main() {
       return out(r.routes.length ? `${rest[0]} now has ${r.routes.length} rule${r.routes.length === 1 ? '' : 's'}${r.tz ? ` (times in ${r.tz})` : ''}` : `Removed the rules from ${rest[0]}`, r);
     }
     case 'qr':
-      return console.log(linkQrSvg(need(rest[0], 'link ID')));
+      return console.log(opts.plain ? linkQrSvg(need(rest[0], 'link ID')) : await linkQrSvgDesigned(need(rest[0], 'link ID')));
     case undefined:
     case 'help':
     case '--help':
@@ -239,7 +240,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().then(() => {
+  if (uploadStatus.slow) console.error('Note: Arweave’s fast uploader didn’t take this, so it went through the backup uploader. It can take a few minutes to go live.');
+}).catch((err) => {
   console.error(`permapath: ${err.message}`);
   process.exit(1);
 });

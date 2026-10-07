@@ -103,13 +103,99 @@ ${actions}
 ${details ? `<p class="details">${details}</p>\n` : ''}`;
 }
 
-export function buildPageHtml({ title, text = '', image = '', contact = null, vcardUrl = '' }) {
+// ---------- events ----------
+// A page with the date and time (shown in the organizer's time zone), the
+// place, and Add to calendar (.ics) / Google Calendar / Directions buttons.
+
+export function cleanEvent(e = {}) {
+  const out = {
+    name: String(e.name || '').trim().slice(0, 200),
+    start: Number(e.start) || 0,
+    end: Number(e.end) || 0,
+    tz: String(e.tz || '').trim() || 'UTC',
+    location: String(e.location || '').trim().slice(0, 300),
+  };
+  if (!out.name) throw new Error('Give the event a name.');
+  if (!out.start) throw new Error('Choose when the event starts.');
+  if (out.end && out.end <= out.start) throw new Error('The event has to end after it starts.');
+  try { new Intl.DateTimeFormat('en-US', { timeZone: out.tz }); } catch { out.tz = 'UTC'; }
+  return out;
+}
+
+const eventEnd = (e) => e.end || e.start + 3600_000; // calendars need an end: an hour by default
+
+// "Saturday, November 1, 2026 · 7:00 – 9:00 PM PDT", in the event's own time zone.
+export function eventWhen(event) {
+  const e = cleanEvent(event);
+  const date = (ms) => new Intl.DateTimeFormat('en-US', { timeZone: e.tz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(ms);
+  const time = (ms, zone) => new Intl.DateTimeFormat('en-US', { timeZone: e.tz, hour: 'numeric', minute: '2-digit', ...(zone ? { timeZoneName: 'short' } : {}) }).format(ms);
+  if (!e.end) return `${date(e.start)} · ${time(e.start, true)}`;
+  if (date(e.start) === date(e.end)) return `${date(e.start)} · ${time(e.start)} – ${time(e.end, true)}`;
+  return `${date(e.start)}, ${time(e.start)} – ${date(e.end)}, ${time(e.end, true)}`;
+}
+
+// iCalendar file (RFC 5545), times in UTC.
+export function buildIcs(event, details = '') {
+  const e = cleanEvent(event);
+  const stamp = (ms) => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const esc = (s) => s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (m) => `\\${m}`);
+  // Lines longer than 75 octets continue on the next line after a space.
+  const fold = (line) => {
+    const out = [];
+    let cur = '';
+    for (const ch of line) {
+      if (new TextEncoder().encode(cur + ch).length > (out.length ? 74 : 75)) { out.push(cur); cur = ''; }
+      cur += ch;
+    }
+    out.push(cur);
+    return out.join('\r\n ');
+  };
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PermaPath//Event//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    `UID:${e.start}-${e.name.replace(/[^\w]+/g, '-').slice(0, 40)}@permapath.link`,
+    `DTSTAMP:${stamp(e.start)}`, `DTSTART:${stamp(e.start)}`, `DTEND:${stamp(eventEnd(e))}`,
+    `SUMMARY:${esc(e.name)}`,
+    ...(e.location ? [`LOCATION:${esc(e.location)}`] : []),
+    ...(details.trim() ? [`DESCRIPTION:${esc(details.trim().slice(0, 2000))}`] : []),
+    'END:VEVENT', 'END:VCALENDAR', '',
+  ].map(fold).join('\r\n');
+}
+
+function eventBody(event, icsUrl, image, details) {
+  const e = cleanEvent(event);
+  const utc = (ms) => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(e.name)}`
+    + `&dates=${utc(e.start)}/${utc(eventEnd(e))}${e.location ? `&location=${encodeURIComponent(e.location)}` : ''}`
+    + `${details.trim() ? `&details=${encodeURIComponent(details.trim().slice(0, 1000))}` : ''}`;
+  const filename = `${e.name.replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'event'}.ics`;
+  const actions = [
+    icsUrl ? `<a href="${escapeHtml(icsUrl)}" class="save" download="${escapeHtml(filename)}" rel="noopener">Add to calendar</a>` : '',
+    `<a href="${escapeHtml(google)}" rel="noopener">Google Calendar</a>`,
+    e.location ? `<a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(e.location)}" rel="noopener">Directions</a>` : '',
+  ].filter(Boolean).join('\n');
+  return `${image ? `<img id="pp-photo" src="${image}" alt="">\n` : ''}<h1>${escapeHtml(e.name)}</h1>
+<p class="when">${escapeHtml(eventWhen(e))}</p>
+${e.location ? `<p class="where">${escapeHtml(e.location)}</p>\n` : ''}<div class="actions">
+${actions}
+</div>
+`;
+}
+
+const EVENT_STYLE = `.when{font-size:1.15rem;font-weight:600;margin:-.4rem 0 .3rem}.where{color:var(--muted);margin:0 0 1.4rem}`;
+
+export function buildPageHtml({ title, text = '', image = '', contact = null, vcardUrl = '', event = null, icsUrl = '' }) {
   if (contact) title = cleanContact(contact).name;
+  if (event) title = cleanEvent(event).name;
+  if (icsUrl && !/^(https:\/\/arweave\.net\/[A-Za-z0-9_-]{43}|data:text\/calendar;charset=utf-8,[^"<>]*)$/.test(icsUrl)) throw new Error('Unsupported calendar file.');
   if (!title || !title.trim()) throw new Error('Give your page a title.');
   if (text.length > PAGE_TEXT_MAX) throw new Error(`Page text is too long (${PAGE_TEXT_MAX.toLocaleString()} characters max).`);
   if (image && !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image)) throw new Error('Unsupported image.');
   if (vcardUrl && !/^(https:\/\/arweave\.net\/[A-Za-z0-9_-]{43}|data:text\/vcard;charset=utf-8,[^"<>]*)$/.test(vcardUrl)) throw new Error('Unsupported contact file.');
-  const source = JSON.stringify({ v: 1, title: title.trim(), text, ...(contact ? { contact: cleanContact(contact), vcardUrl } : {}) }).replace(/</g, '\\u003c');
+  const source = JSON.stringify({
+    v: 1, title: title.trim(), text,
+    ...(contact ? { contact: cleanContact(contact), vcardUrl } : {}),
+    ...(event ? { event: cleanEvent(event), icsUrl } : {}),
+  }).replace(/</g, '\\u003c');
   const t = escapeHtml(title.trim());
   return `<!doctype html>
 <html lang="en">
@@ -118,11 +204,11 @@ export function buildPageHtml({ title, text = '', image = '', contact = null, vc
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="PermaPath">
 <title>${t}</title>
-<style>${STYLE}${contact ? `\n${CONTACT_STYLE}` : ''}</style>
+<style>${STYLE}${contact || event ? `\n${CONTACT_STYLE}` : ''}${event ? `\n${EVENT_STYLE}` : ''}</style>
 </head>
 <body>
 <main>
-${contact ? contactBody(contact, vcardUrl, image) : `${image ? `<img id="pp-photo" src="${image}" alt="">\n` : ''}<h1>${t}</h1>\n`}${renderText(text)}
+${contact ? contactBody(contact, vcardUrl, image) : event ? eventBody(event, icsUrl, image, text) : `${image ? `<img id="pp-photo" src="${image}" alt="">\n` : ''}<h1>${t}</h1>\n`}${renderText(text)}
 </main>
 <script type="application/json" id="permapath-page">${source}</script>
 </body>
@@ -149,6 +235,11 @@ export function parsePageHtml(html) {
     page.contact = Object.fromEntries(CONTACT_FIELDS.map((k) => [k, typeof source.contact[k] === 'string' ? source.contact[k] : '']));
     page.vcardUrl = typeof source.vcardUrl === 'string' ? source.vcardUrl : '';
   }
+  if (source.event && typeof source.event === 'object') {
+    const ev = source.event;
+    page.event = { name: String(ev.name || ''), start: Number(ev.start) || 0, end: Number(ev.end) || 0, tz: String(ev.tz || 'UTC'), location: String(ev.location || '') };
+    page.icsUrl = typeof source.icsUrl === 'string' ? source.icsUrl : '';
+  }
   return page;
 }
 
@@ -157,8 +248,9 @@ export function parsePageHtml(html) {
 export async function compressImage(file, maxBytes) {
   const bitmap = await createImageBitmap(file);
   let edge = Math.min(1600, Math.max(bitmap.width, bitmap.height));
+  const smallest = Math.min(200, edge); // small images (like logos) can start below 200px
   try {
-    while (edge >= 200) {
+    while (edge >= smallest) {
       const scale = edge / Math.max(bitmap.width, bitmap.height);
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(bitmap.width * Math.min(1, scale)));

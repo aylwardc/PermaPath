@@ -683,6 +683,120 @@ if (which === 'all' || which === 'editor') {
     await page.getByRole('button', { name: 'Create a key' }).waitFor(); // signed out by reload; the view choice is kept
     assert.equal(await page.evaluate(() => localStorage.getItem('permapath:view')), '"table"');
   });
+  await check('editor: says so when an upload goes through the slow backup uploader', async (page) => {
+    await page.route('https://upload.ardrive.io/**', (route) => route.fulfill({ status: 402, body: 'payment required' }));
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByText('No links yet').waitFor({ timeout: 30_000 });
+    await page.locator('#create-dest').fill('example.com/?pp=slow');
+    await page.locator('#create-name').fill('Slow one');
+    await page.getByRole('button', { name: 'Create link' }).click();
+    await page.locator('.link-item', { hasText: 'Slow one' }).getByText(/backup uploader/).waitFor({ timeout: 10_000 });
+  });
+  await check('editor: event page with an Add to calendar file; edit loads it back', async (page) => {
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByText('No links yet').waitFor({ timeout: 30_000 });
+    await page.locator('#create-form').getByText('An event').click();
+    await page.locator('#create-event-name').fill('Bike swap');
+    await page.locator('#create-event-start').fill('2030-05-04T10:00');
+    await page.locator('#create-event-end').fill('2030-05-04T14:00');
+    await page.locator('#create-event-location').fill('12 Main St');
+    await page.locator('#create-page-text').fill('Bring a bike to trade.');
+    await page.getByRole('button', { name: 'Create link' }).click();
+    const card = page.locator('.link-item', { hasText: 'Bike swap' });
+    const dest = await card.locator('.dest').first().textContent({ timeout: 30_000 });
+    assert.match(dest, /^Event · https:\/\/arweave\.net\//);
+    const pageId = dest.match(/arweave\.net\/([A-Za-z0-9_-]{43})/)[1];
+    const html = await fetchFresh(pageId, 'Add to calendar');
+    assert.match(html, /<p class="when">Saturday, May 4, 2030 · 10:00 AM – 2:00 PM/);
+    const icsId = html.match(/href="https:\/\/arweave\.net\/([A-Za-z0-9_-]{43})" class="save"/)[1];
+    const ics = await fetch(`https://arweave.net/${icsId}`);
+    assert.equal(ics.headers.get('content-type'), 'text/calendar');
+    assert.match(await ics.text(), /SUMMARY:Bike swap/);
+    await card.getByRole('button', { name: 'Edit' }).click();
+    await page.waitForFunction(() => document.getElementById('edit-event-name').value === 'Bike swap', null, { timeout: 30_000 });
+    assert.equal(await page.locator('#edit-event-start').inputValue(), '2030-05-04T10:00');
+    assert.equal(await page.locator('input[name=edit-kind]:checked').getAttribute('value'), 'event');
+  });
+  await check('QR designs all scan (every style, colors, label, logo, sturdy, small sizes)', async (page) => {
+    await page.goto(base);
+    await page.addScriptTag({ path: path.join(root, 'node_modules/jsqr/dist/jsQR.js') });
+    const url = 'https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE?l=8NiAUY8SAUDkrHw7VCmjVc8M708VTCkmNmBbtyidhRc';
+    const results = await page.evaluate(async (url) => {
+      const { drawQr, qrCanvasSize } = await import('./qr.js');
+      // A stand-in logo: a colored square with a letter.
+      const logo = document.createElement('canvas');
+      logo.width = logo.height = 120;
+      const lc = logo.getContext('2d');
+      lc.fillStyle = '#e63946'; lc.fillRect(0, 0, 120, 120); lc.fillStyle = '#fff'; lc.font = 'bold 90px sans-serif'; lc.fillText('P', 30, 95);
+      const designs = [
+        {}, { style: 'rounded' }, { style: 'dots' }, { fg: '#1d3557', bg: '#f1faee' }, { label: 'Scan for the menu' },
+        { logo: 'https://arweave.net/' + 'L'.repeat(43) }, { style: 'dots', logo: 'https://arweave.net/' + 'L'.repeat(43), fg: '#264653' },
+        { sturdy: true, style: 'rounded' }, { transparent: true, style: 'dots' },
+      ];
+      const out = [];
+      for (const d of designs) {
+        for (const scale of [3, 10]) { // ~0.75 in and ~2.5 in at phone-camera resolution
+          const size = qrCanvasSize(url, scale, d);
+          const c = document.createElement('canvas');
+          c.width = size.width; c.height = size.height;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); // what transparent codes get printed on
+          drawQr(ctx, url, scale, d, { logoImage: d.logo ? logo : null });
+          const img = ctx.getImageData(0, 0, c.width, c.height);
+          const found = window.jsQR(img.data, img.width, img.height);
+          out.push({ d: JSON.stringify(d), scale, ok: found?.data === url });
+        }
+      }
+      return out;
+    }, url);
+    const failed = results.filter((r) => !r.ok);
+    assert.deepEqual(failed, [], `designs that didn't decode: ${failed.map((f) => `${f.d}@${f.scale}`).join(', ')}`);
+  });
+  await check('editor: customize a QR design, save it, and it comes back', async (page) => {
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByText('No links yet').waitFor({ timeout: 30_000 });
+    await page.locator('#create-dest').fill('example.com/?pp=design');
+    await page.locator('#create-name').fill('Designed');
+    await page.getByRole('button', { name: 'Create link' }).click();
+    await openCreated(page, 'Designed');
+    await page.locator('#design-box summary').click();
+    await page.locator('#design-label').fill('Scan for the menu');
+    await page.locator('#design-box').getByText('Dots').click();
+    await page.locator('#design-fg').fill('#cccccc');
+    await page.locator('#design-error').getByText(/too close/).waitFor();
+    assert.equal(await page.locator('#design-save').isDisabled(), true, 'faint colors cannot be saved');
+    await page.locator('#design-fg').fill('#1d3557');
+    await page.locator('#design-logo').setInputFiles(path.join(root, 'editor/apple-touch-icon.png'));
+    await page.locator('#qr-big image').waitFor();
+    assert.match(await page.locator('#qr-big').innerHTML(), />Scan for the menu</);
+    const [svg] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download SVG' }).click()]);
+    assert.match(fs.readFileSync(await svg.path(), 'utf8'), /<image href="data:image\/jpeg;base64,/, 'SVG download embeds the logo');
+    await page.getByRole('button', { name: 'Save design' }).click();
+    await page.locator('#design-save', { hasText: 'Saved' }).waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Done' }).click();
+    // The design comes back from the link's record once the update is indexed.
+    const card = page.locator('.link-item', { hasText: 'Designed' });
+    for (let i = 0; i < 30; i++) {
+      await page.getByRole('button', { name: 'Refresh' }).click();
+      await page.waitForTimeout(1000);
+      if (!(await card.locator('.chip', { hasText: /Updating|New/ }).count())) break;
+    }
+    await card.locator('h3').click();
+    await page.locator('#qr-dialog').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#design-label').inputValue(), 'Scan for the menu');
+    assert.equal(await page.locator('input[name=design-style]:checked').getAttribute('value'), 'dots');
+    assert.equal(await page.locator('#design-fg').inputValue(), '#1d3557');
+    await page.locator('#qr-big image').waitFor({ timeout: 30_000 }); // logo loaded from Arweave (fake)
+  });
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);
     await page.locator('#login-key').fill('definitely not a key');

@@ -288,7 +288,9 @@ export async function upload(item) {
     let body = {};
     try { body = await res.json(); } catch { /* not JSON: fine */ }
     if (body.id && body.id !== item.id) throw new Error('Upload returned an unexpected ID');
-    return { ...body, id: item.id };
+    // slow: Turbo replies with the ID; up.arweave.net (the fallback, also behind
+    // the permapath.link relay) doesn't, and its uploads take minutes to appear.
+    return { ...body, id: item.id, slow: !body.id };
   }
   throw lastError || new Error('Upload failed');
 }

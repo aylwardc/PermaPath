@@ -1,9 +1,10 @@
-import { qrMatrix, qrSvg } from './qr.js';
+import { qrSvg, drawQr, qrCanvasSize, cleanDesign, checkDesign } from './qr.js';
+import { loadLogo, loadedLogo, remember, imageFromDataUrl } from './logos.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
 import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
 import { optionsFields } from './options.js';
 import { RESOLVER_BASE } from './config.js';
-import { buildPageHtml, parsePageHtml, pageBytes, compressImage, buildVcard, PAGE_MAX_BYTES, LOCKED_PAGE_MAX, CONTACT_FIELDS } from './page.js';
+import { buildPageHtml, parsePageHtml, pageBytes, compressImage, buildVcard, buildIcs, PAGE_MAX_BYTES, LOCKED_PAGE_MAX, CONTACT_FIELDS } from './page.js';
 import { buildLockedHtml, parseLockedHtml, openLocked, passwordAdvice, suggestPassphrase } from './lock.js';
 import { APP_NAME } from './arweave.js';
 import { keyToPhrase, phraseToKey } from './phrase.js';
@@ -74,29 +75,46 @@ function writePending(list) {
 }
 
 function addPending(state) {
-  writePending([...readPending().filter((p) => p.id !== state.id || p.seq > state.seq), { ...state, postedAt: Date.now() }]);
+  const slow = Date.now() - slowUploadAt < 60_000;
+  writePending([...readPending().filter((p) => p.id !== state.id || p.seq > state.seq), { ...state, postedAt: Date.now(), ...(slow ? { slow } : {}) }]);
 }
 
 // ---------- QR ----------
 
+// A link's QR code as SVG, with its design (and logo, once loaded).
+const logoWaits = new Map(); // logo url -> when we last started loading it
+function logoFor(design) {
+  if (!design.logo) return null;
+  if (design.logo === draftLogo?.url) return draftLogo;
+  const logo = loadedLogo(design.logo);
+  if (!logo && !(Date.now() - (logoWaits.get(design.logo) || 0) < 60_000)) {
+    logoWaits.set(design.logo, Date.now());
+    loadLogo(design.logo).then((l) => { if (l) { render(); if (qrLink) previewQr(); } });
+  }
+  return logo;
+}
+
+function designedSvg(view, margin = 4, design = view.design || {}, { label = true } = {}) {
+  const logo = logoFor(design);
+  return qrSvg(linkUrl(view.id), margin, design, { logoData: logo?.dataUrl || '', label });
+}
+
 // ~2400px wide: sharp in print up to ~8 in (20 cm) at 300 dpi. Whole-pixel
 // modules keep the edges crisp.
 // Synchronous on purpose: iOS only opens the share sheet if share() is called
-// straight from the tap, with no awaiting first.
-function qrPngBlobSync(text, minWidth = 2400, margin = 4) {
-  const { n, dark } = qrMatrix(text);
-  const scale = Math.ceil(minWidth / (n + margin * 2));
+// straight from the tap, with no awaiting first. (Logos are preloaded.)
+function qrPngBlobSync(view, design = view.design || {}, minWidth = 2400) {
+  const text = linkUrl(view.id);
+  const unit = qrCanvasSize(text, 1, design);
+  const scale = Math.ceil(minWidth / unit.width);
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = (n + margin * 2) * scale;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#000';
-  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (dark(r, c)) ctx.fillRect((c + margin) * scale, (r + margin) * scale, scale, scale);
+  canvas.width = unit.width * scale;
+  canvas.height = unit.height * scale;
+  const logo = logoFor(design);
+  drawQr(canvas.getContext('2d'), text, scale, design, { logoImage: logo?.img || null });
   const bin = atob(canvas.toDataURL('image/png').split(',')[1]);
   return new Blob([Uint8Array.from(bin, (ch) => ch.charCodeAt(0))], { type: 'image/png' });
 }
-const qrPngBlob = async (text) => qrPngBlobSync(text);
 
 // Share the QR image (phones: the system share sheet, which also has Copy and
 // Save Image). Where sharing files isn't supported, copy the image instead.
@@ -105,9 +123,9 @@ const canShareFiles = (() => {
 })();
 const shareLabel = canShareFiles ? 'Share' : 'Copy QR';
 
-function shareQr(link, button) {
+function shareQr(link, button, design) {
   const url = linkUrl(link.id);
-  const blob = qrPngBlobSync(url);
+  const blob = qrPngBlobSync(link, design);
   if (canShareFiles) {
     const file = new File([blob], `${fileBase(link)}.png`, { type: 'image/png' });
     navigator.share({ files: [file], title: link.name || 'QR code', url }).catch((err) => {
@@ -134,23 +152,112 @@ function download(blob, filename) {
 
 const fileBase = (link) => `permapath-${(link.name || link.id.slice(0, 8)).replace(/[^\w-]+/g, '-').toLowerCase()}`;
 
+// The QR dialog shows a draft design: edits preview live, downloads use the
+// draft, and Save design writes it to the link.
 let qrLink = null;
+let draft = {};
+let draftLogo = null; // { url, dataUrl, img } for a logo chosen but not uploaded yet
+// Stands in for a chosen logo's address until Save design uploads it.
+const PENDING_LOGO = `https://arweave.net/${'_'.repeat(43)}`;
+
+function previewQr() {
+  $('qr-big').innerHTML = designedSvg(qrLink, 4, draft);
+  $('qr-big').classList.toggle('checker', !!draft.transparent);
+  const { error, warnings } = checkDesign(draft);
+  $('design-notes').replaceChildren(...warnings.map((w) => h('li', {}, w)));
+  showError($('design-error'), error ? new Error(error) : null);
+  $('design-save').disabled = !!error || JSON.stringify(cleanDesign(draft)) === JSON.stringify(cleanDesign(qrLink.design || {}));
+  $('design-logo-row').hidden = !draft.logo;
+  // A logo always uses the extra error correction.
+  $('design-sturdy').checked = !!(draft.sturdy || draft.logo);
+  $('design-sturdy').disabled = !!draft.logo;
+}
+
+function loadDraft(design) {
+  draft = { ...cleanDesign(design) };
+  if (draft.logo !== PENDING_LOGO) draftLogo = null;
+  $('design-label').value = draft.label || '';
+  for (const r of document.querySelectorAll('input[name="design-style"]')) r.checked = r.value === (draft.style || 'square');
+  $('design-fg').value = draft.fg || '#000000';
+  $('design-bg').value = draft.bg || '#ffffff';
+  $('design-transparent').checked = !!draft.transparent;
+  $('design-sturdy').checked = !!draft.sturdy;
+  $('design-logo').value = '';
+}
+
 function openQr(link) {
   qrLink = link;
   const url = linkUrl(link.id);
   $('qr-title').textContent = link.name || 'Your QR code';
-  $('qr-big').innerHTML = qrSvg(url);
   $('qr-url').href = url;
   $('qr-url').textContent = url;
   $('qr-history').href = `history.html?l=${link.id}`;
+  loadDraft(link.design || {});
+  $('design-box').open = false;
+  $('design-save').textContent = 'Save design';
+  previewQr();
   $('qr-dialog').showModal();
 }
 
-$('qr-png').addEventListener('click', async () => download(await qrPngBlob(linkUrl(qrLink.id)), `${fileBase(qrLink)}.png`));
-$('qr-svg').addEventListener('click', () => download(new Blob([qrSvg(linkUrl(qrLink.id))], { type: 'image/svg+xml' }), `${fileBase(qrLink)}.svg`));
+function readDraft() {
+  draft = {
+    ...draft,
+    label: $('design-label').value,
+    style: document.querySelector('input[name="design-style"]:checked').value,
+    fg: $('design-fg').value,
+    bg: $('design-bg').value,
+    transparent: $('design-transparent').checked,
+    sturdy: $('design-sturdy').checked,
+  };
+  $('design-save').textContent = 'Save design';
+  previewQr();
+}
+for (const id of ['design-label', 'design-fg', 'design-bg', 'design-transparent', 'design-sturdy']) $(id).addEventListener('input', readDraft);
+for (const r of document.querySelectorAll('input[name="design-style"]')) r.addEventListener('change', readDraft);
+$('design-logo').addEventListener('change', async () => {
+  const file = $('design-logo').files[0];
+  if (!file) return;
+  try {
+    const dataUrl = await compressImage(file, 30 * 1024);
+    draftLogo = { url: PENDING_LOGO, dataUrl, img: await imageFromDataUrl(dataUrl) };
+    draft = { ...draft, logo: PENDING_LOGO };
+    previewQr();
+  } catch (err) {
+    showError($('design-error'), err);
+  }
+});
+$('design-logo-remove').addEventListener('click', () => { draft = { ...draft, logo: '' }; draftLogo = null; $('design-logo').value = ''; previewQr(); });
+$('design-reset').addEventListener('click', () => { loadDraft({}); previewQr(); });
+$('design-save').addEventListener('click', async (e) => {
+  const link = links.find((l) => l.id === qrLink.id);
+  if (!link) return;
+  await busy(e.currentTarget, async () => {
+    try {
+      let design = { ...draft };
+      if (design.logo === PENDING_LOGO && draftLogo) {
+        const bytes = Uint8Array.from(atob(draftLogo.dataUrl.split(',')[1]), (c) => c.charCodeAt(0));
+        const type = draftLogo.dataUrl.slice(5, draftLogo.dataUrl.indexOf(';'));
+        design.logo = await publishFile(bytes, type, 'logo');
+        remember(design.logo, draftLogo);
+      }
+      design = cleanDesign(design);
+      await saveUpdate(link, { design });
+      qrLink = { ...qrLink, design };
+      loadDraft(design);
+      previewQr();
+    } catch (err) {
+      showError($('design-error'), err);
+    }
+  });
+  $('design-save').textContent = 'Saved';
+  $('design-save').disabled = true;
+});
+
+$('qr-png').addEventListener('click', () => download(qrPngBlobSync(qrLink, draft), `${fileBase(qrLink)}.png`));
+$('qr-svg').addEventListener('click', () => download(new Blob([designedSvg(qrLink, 4, draft)], { type: 'image/svg+xml' }), `${fileBase(qrLink)}.svg`));
 $('qr-copy').addEventListener('click', (e) => copy(linkUrl(qrLink.id), e.currentTarget));
 $('qr-share').textContent = shareLabel;
-$('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget));
+$('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget, draft));
 
 // ---------- sign in / new key ----------
 
@@ -346,7 +453,7 @@ async function reveal(url) {
     const env = parseLockedHtml((await loadArweaveHtml(url)) || '');
     const { payload } = await openLocked(env, key.lockKey);
     const page = payload.type === 'page' ? parsePageHtml(payload.html) : null;
-    revealed.set(url, payload.type === 'url' ? payload.url : page?.contact ? `Contact card · ${page.contact.name}` : `Page · ${page?.title || 'untitled'}`);
+    revealed.set(url, payload.type === 'url' ? payload.url : page?.contact ? `Contact card · ${page.contact.name}` : page?.event ? `Event · ${page.event.name}` : `Page · ${page?.title || 'untitled'}`);
   } catch {
     revealed.delete(url); // try again on the next refresh
     return;
@@ -403,6 +510,7 @@ function describe(state) {
   if (isOffNow(state)) return state.disabled ? 'Turned off' : `Turned off automatically ${when(state.offAt)}`;
   if (state.kind === 'locked') return revealed.get(state.destination) || 'Password protected';
   if (state.kind === 'contact') return `Contact card · ${state.destination}`;
+  if (state.kind === 'event') return `Event · ${state.destination}`;
   return state.kind === 'page' ? `Page · ${state.destination}` : state.destination;
 }
 
@@ -456,7 +564,7 @@ function renderTable() {
   const rows = sortedLinks().map((link) => {
     const view = link.pending || link;
     const thumb = h('button', { class: 'qr-mini', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
-    thumb.innerHTML = qrSvg(linkUrl(link.id), 1);
+    thumb.innerHTML = designedSvg(view, 1, view.design, { label: false });
     const scans = view.count ? (scanCounts.get(link.id) ?? '…').toLocaleString() : '—';
     return h('tr', { 'data-id': link.id },
       h('td', {}, thumb),
@@ -477,6 +585,8 @@ function renderTable() {
   $('links-table').replaceChildren(h('table', { class: 'links-table' }, h('thead', {}, head), h('tbody', {}, rows)));
 }
 
+const SLOW_NOTE = 'Arweave’s fast uploader didn’t take this one, so it went through the backup uploader. It can take a few minutes to go live.';
+
 function render() {
   const table = viewMode === 'table' && links.length > 0;
   $('links').hidden = table;
@@ -484,7 +594,7 @@ function render() {
   if (table) {
     for (const link of links) {
       const view = link.pending || link;
-      if (['page', 'contact', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
+      if (['page', 'contact', 'event', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
       if (view.kind === 'locked' && view.destination) reveal(view.destination);
     }
     renderTable();
@@ -492,21 +602,22 @@ function render() {
   }
   $('links').replaceChildren(...links.map((link) => {
     const view = link.pending || link;
-    if (['page', 'contact', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
+    if (['page', 'contact', 'event', 'locked'].includes(view.kind) && view.destination) checkServed(view.destination);
     if (view.kind === 'locked' && view.destination) reveal(view.destination);
     const lockChip = view.kind === 'locked' ? h('span', { class: 'chip locked', title: 'Password protected' }, '🔒 Locked') : null;
     const thumb = h('button', { class: 'qr-thumb', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
-    thumb.innerHTML = qrSvg(linkUrl(link.id), 2);
+    thumb.innerHTML = designedSvg(view, 2, view.design, { label: false });
     const dest = [];
     if (link.pending && !link.unindexed && describe(link.pending) !== describe(link)) {
       dest.push(h('p', { class: 'dest old' }, describe(link)));
       dest.push(h('p', { class: 'dest pending' }, `→ ${describe(link.pending)} (going live…)`));
+      if (link.pending.slow) dest.push(h('p', { class: 'muted dest note' }, SLOW_NOTE));
     } else if (publishingPages.has(view.destination)) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
-      dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : view.kind === 'contact' ? 'contact card' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
+      dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : view.kind === 'contact' ? 'contact card' : view.kind === 'event' ? 'event page' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
     } else if (link.unindexed) {
       dest.push(h('p', { class: 'dest' }, describe(view)));
-      dest.push(h('p', { class: 'muted dest note' }, 'Just created. Usually live within a minute.'));
+      dest.push(h('p', { class: 'muted dest note' }, link.pending?.slow ? SLOW_NOTE : 'Just created. Usually live within a minute.'));
     } else {
       dest.push(h('p', { class: 'dest' }, describe(view)));
     }
@@ -535,10 +646,19 @@ function render() {
 
 // ---------- writes ----------
 
+// When an upload last went to the slow fallback (Turbo refused it, e.g. this
+// device's free allowance is used up), so the list can say it may take a while.
+let slowUploadAt = 0;
+async function uploadTracked(item) {
+  const result = await upload(item);
+  if (result.slow) slowUploadAt = Date.now();
+  return result;
+}
+
 async function publish(tags) {
   // Empty body: lets anyone verify the signature from GraphQL fields alone.
   const item = await createDataItem(key, tags, '');
-  await upload(item);
+  await uploadTracked(item);
   return item.id;
 }
 
@@ -557,20 +677,21 @@ async function publishPage(page) {
     { name: 'App-Version', value: '1' },
     { name: 'Type', value: 'page' },
   ], html);
-  await upload(item);
+  await uploadTracked(item);
   return `https://arweave.net/${item.id}`;
 }
 
-// The "Save contact" file for a contact card: its own upload, served as
-// text/vcard so phones open it straight into Add to Contacts.
-async function publishVcard(vcard) {
+// A contact card's "Save contact" file or an event's "Add to calendar" file:
+// its own upload, served with its real type so phones open it straight into
+// Contacts or Calendar.
+async function publishFile(body, contentType, type) {
   const item = await createDataItem(key, [
-    { name: 'Content-Type', value: 'text/vcard' },
+    { name: 'Content-Type', value: contentType },
     { name: 'App-Name', value: APP_NAME },
     { name: 'App-Version', value: '1' },
-    { name: 'Type', value: 'vcard' },
-  ], vcard);
-  await upload(item);
+    { name: 'Type', value: type },
+  ], body);
+  await uploadTracked(item);
   return `https://arweave.net/${item.id}`;
 }
 
@@ -602,21 +723,27 @@ async function publishDestination(fields, onProgress = () => {}) {
     buildPageHtml(page); // validate before uploading anything
     if (k === 'contact') {
       onProgress('Saving your contact card…');
-      const vcardUrl = await publishVcard(buildVcard(page.contact, page.text));
+      const vcardUrl = await publishFile(buildVcard(page.contact, page.text), 'text/vcard', 'vcard');
       return { destination: await publishPage({ ...page, vcardUrl }), kind: 'contact', title: page.contact.name, published: true };
+    }
+    if (k === 'event') {
+      onProgress('Saving your event…');
+      const icsUrl = await publishFile(buildIcs(page.event, page.text), 'text/calendar', 'ics');
+      return { destination: await publishPage({ ...page, icsUrl }), kind: 'event', title: page.event.name, published: true };
     }
     onProgress('Saving your page…');
     return { destination: await publishPage(page), kind: 'page', title: page.title, published: true };
   }
   let payload, title = '';
-  if (k === 'page' || k === 'contact') {
+  if (k === 'page' || k === 'contact' || k === 'event') {
     const page = fields.page();
-    // Locked: the contact file goes inside the encrypted page, not in a public upload.
+    // Locked: the contact or calendar file goes inside the encrypted page, not in a public upload.
     if (k === 'contact') page.vcardUrl = `data:text/vcard;charset=utf-8,${encodeURIComponent(buildVcard(page.contact, page.text))}`;
+    if (k === 'event') page.icsUrl = `data:text/calendar;charset=utf-8,${encodeURIComponent(buildIcs(page.event, page.text))}`;
     const html = buildPageHtml(page);
     if (pageBytes(html) > LOCKED_PAGE_MAX) throw new Error('This page is too large to lock. Shorten the text or remove the photo.');
     payload = { type: 'page', html };
-    title = k === 'contact' ? page.contact.name : page.title;
+    title = k === 'contact' ? page.contact.name : k === 'event' ? page.event.name : page.title;
   } else {
     payload = { type: 'url', url: normalizeDestination(fields.url()) };
   }
@@ -631,7 +758,7 @@ async function publishDestination(fields, onProgress = () => {}) {
     { name: 'App-Version', value: '1' },
     { name: 'Type', value: 'locked' },
   ], html);
-  await upload(item);
+  await uploadTracked(item);
   return { destination: `https://arweave.net/${item.id}`, kind: 'locked', title, published: true };
 }
 
@@ -662,16 +789,29 @@ function destinationFields(prefix) {
   const pageLimit = () => (lock.checked ? LOCKED_PAGE_MAX : PAGE_MAX_BYTES);
 
   const kind = () => [...radios].find((r) => r.checked).value;
+  text.dataset.placeholder = text.placeholder;
   const contactInput = (f) => $(`${prefix}-contact-${f}`);
   const contact = () => Object.fromEntries(CONTACT_FIELDS.map((f) => [f, contactInput(f).value.trim()]));
-  const page = () => (kind() === 'contact'
-    ? { text: text.value, image, contact: contact() }
-    : { title: title.value.trim(), text: text.value, image });
-  const isPageKind = (k) => k === 'page' || k === 'contact';
+  // Event times are entered in this device's time zone, and the page shows them in it.
+  const eventInput = (f) => $(`${prefix}-event-${f}`);
+  const zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })();
+  const localMs = (v) => (v ? new Date(v).getTime() : 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  const toLocal = (ms) => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const event = () => ({
+    name: eventInput('name').value.trim(), start: localMs(eventInput('start').value), end: localMs(eventInput('end').value),
+    tz: zone, location: eventInput('location').value.trim(),
+  });
+  eventInput('zone').textContent = `Times are in your time zone (${zone.replace(/_/g, ' ')}), and the page shows them that way.`;
+  const page = () => (kind() === 'contact' ? { text: text.value, image, contact: contact() }
+    : kind() === 'event' ? { text: text.value, image, event: event() }
+      : { title: title.value.trim(), text: text.value, image });
+  const isPageKind = (k) => k === 'page' || k === 'contact' || k === 'event';
   function updateSize() {
     try {
       const p = page();
-      const bytes = pageBytes(buildPageHtml(p.contact ? { ...p, contact: { ...p.contact, name: p.contact.name || 'x', phone: '', email: '', website: '' } } : { ...p, title: p.title || 'x' }));
+      const bytes = pageBytes(buildPageHtml(p.contact ? { ...p, contact: { ...p.contact, name: p.contact.name || 'x', phone: '', email: '', website: '' } }
+        : p.event ? { ...p, event: { ...p.event, name: p.event.name || 'x', start: p.event.start || 1, end: 0 } } : { ...p, title: p.title || 'x' }));
       size.textContent = `Page size: ${Math.ceil(bytes / 1024)} KB of ${Math.floor(pageLimit() / 1024)} KB`;
     } catch (err) {
       size.textContent = err.message;
@@ -681,7 +821,9 @@ function destinationFields(prefix) {
     for (const r of radios) r.checked = r.value === k;
     for (const el of root.querySelectorAll('[data-kind]')) el.hidden = !el.dataset.kind.split(' ').includes(k);
     const name = $(`${prefix}-name`);
-    name.placeholder = k === 'page' ? 'Defaults to the page title' : k === 'contact' ? 'Defaults to the contact’s name' : (prefix === 'create' ? 'Restaurant menu' : '');
+    name.placeholder = k === 'page' ? 'Defaults to the page title' : k === 'contact' ? 'Defaults to the contact’s name'
+      : k === 'event' ? 'Defaults to the event name' : (prefix === 'create' ? 'Restaurant menu' : '');
+    text.placeholder = k === 'event' ? 'What to bring, where to park, who to ask for…' : text.dataset.placeholder;
     if (isPageKind(k)) updateSize();
   }
   function setImage(dataUrl) {
@@ -732,6 +874,10 @@ function destinationFields(prefix) {
       title.value = p.contact ? '' : p.title;
       text.value = p.text;
       for (const f of CONTACT_FIELDS) contactInput(f).value = p.contact?.[f] || '';
+      eventInput('name').value = p.event?.name || '';
+      eventInput('start').value = toLocal(p.event?.start);
+      eventInput('end').value = toLocal(p.event?.end);
+      eventInput('location').value = p.event?.location || '';
       setImage(p.image);
     },
     locked: () => lock.checked,
@@ -741,6 +887,7 @@ function destinationFields(prefix) {
     reset() {
       title.value = ''; text.value = ''; setImage(''); $(`${prefix}-dest`).value = '';
       for (const f of CONTACT_FIELDS) contactInput(f).value = '';
+      for (const f of ['name', 'start', 'end', 'location']) eventInput(f).value = '';
       setKind('url'); setLocked(false);
     },
   };
@@ -819,12 +966,12 @@ async function openEdit(link) {
     editFields.setLocked(true, opened.keep);
     if (opened.payload.type === 'page') {
       const page = parsePageHtml(opened.payload.html);
-      editFields.setKind(page?.contact ? 'contact' : 'page');
+      editFields.setKind(page?.contact ? 'contact' : page?.event ? 'event' : 'page');
       if (page) editFields.loadPage(page);
     } else {
       editFields.setUrl(opened.payload.url);
     }
-  } else if (view.kind === 'page' || view.kind === 'contact') {
+  } else if (view.kind === 'page' || view.kind === 'contact' || view.kind === 'event') {
     editFields.setKind(view.kind);
     $('edit-progress').textContent = 'Loading your page…';
     const page = await loadPage(view.destination);

@@ -63,7 +63,7 @@ node permapath.mjs lock LINK_ID --password "four random words here"       # prot
 node permapath.mjs unlock LINK_ID                                         # remove protection
 node permapath.mjs list --json                                            # the key's links
 node permapath.mjs show LINK_ID                                           # history, no key needed
-node permapath.mjs qr LINK_ID > code.svg                                  # QR code (SVG, print-ready)
+node permapath.mjs qr LINK_ID > code.svg                                  # QR code (SVG, print-ready, with its saved design)
 node permapath.mjs scans LINK_ID                                          # scan count (new links count by default)
 node permapath.mjs off-at LINK_ID 2026-12-31T23:00-05:00 --message "This sale has ended."   # turn off on a date
 node permapath.mjs rules LINK_ID '[{"os":"ios","to":"https://apps.apple.com/..."},{"os":"android","to":"https://play.google.com/..."}]'

@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/goT0IrL1H3qFH6zKVcP-qmurP6lOiQ7Wrhpvkk-_GSA/
+  directly: https://arweave.net/hLoFNctSLEFc-V2bPIF3mSb_YlibSi2eYENxiketqSo/
 - **Resolver:** v3, https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE
   (`RESOLVER_TX` in `editor/config.js`). Older codes use v2 (`baTff…`) or v1 (`G81f…`)
   and forward to v3 when their owner uses a v3 feature.
@@ -61,6 +61,10 @@ registry: just Arweave data items and gateway GraphQL.
   `os` (`ios`/`android`), `after`/`before` (unix ms), `days` (`"12345"`, 0 = Sunday)
   and `from`/`until` (`"HH:MM"`, in the `Time-Zone` tag's IANA zone). A rule with an
   unknown condition is skipped. The editor and CLI turn scan counting on for new links.
+- **QR design** (editor-only, resolvers ignore it): a `Design` tag with JSON `{ fg, bg,
+  transparent, style: square|rounded|dots, label, logo: https://arweave.net/<image>, sturdy }`.
+  A logo or `sturdy` uses error correction H (denser: 57 vs 45 modules). Rounded and dot
+  styles draw the finder and alignment patterns solid; every style is decode-tested.
 - **Scan counts:** the Worker keeps a daily total per link (UTC days) in one
   SQLite-backed Durable Object: no IPs, no cookies. Public, unauthenticated, so
   approximate: `GET /api/scans?l=<id>,<id>` (totals, up to 100),
@@ -122,6 +126,7 @@ WORKER=1 node test/browser.mjs editor   # editor tests served through the Worker
 BROWSER=webkit node test/browser.mjs    # same tests on WebKit (Safari's engine)
 cd editor && python3 -m http.server 8090   # run the editor locally
 node scripts/make-print-test.mjs  # rebuild editor/print-test-*.pdf (the printable size test)
+node scripts/stats.mjs          # usage stats from public data (emailed weekly from ~/python_scripts)
 ```
 
 ## Deploy

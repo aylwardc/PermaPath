@@ -26,24 +26,17 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 ## Editor-only (no resolver change)
 
 - **Key handoff** (replaces "key per batch"): create a set of links with a new key and print a sheet with that key and its recovery phrase for whoever takes them over. Full control passes immediately; the creator still has the key too. About half a day. A real ownership transfer needs a new resolver (below).
-- **"Message me" template:** a big button that opens a text or email with the message filled in.
-- **Private scan counts:** only the owner sees counts (the editor signs the request with the key; the history page stops showing them). About half a day. Not urgent: counts need the link ID and show nothing about who scanned.
-
+- **Agent access** (no resolver change needed):
+  - Shipped: single-file CLI at permapath.link/cli.mjs, with `llms.txt` instructions to use a key the user provides (preferably a separate one).
+  - Next: publish as an npm package (`npx permapath …`; the name is free).
+  - Next: a *local* MCP server (`npx permapath-mcp`) for Claude Desktop, ChatGPT desktop and Cursor, with the key kept on the user's machine. Avoid a remote MCP connector that receives keys; read-only remote tools (link history) are fine.
+  - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
 - **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
-- **Key per batch:** create a batch with its own key and export the key with the CSV, so pre-printed codes can be handed to someone else.
 
 ## Needs a new resolver (bundle these; only new codes get them, or old ones via the `Resolver` handoff tag)
 
 - **Backup key and co-editors** (set aside 2026-10-05: too much complexity for the benefit; the recovery phrase covers lost keys): a link names a recovery key or extra keys allowed to update it. It would make agent access safer: give an AI agent its own key with edit rights instead of the main key.
-- **Agent access for code-running agents** (Claude Code, Codex, Cursor), paired with co-editors:
-  - Shipped: single-file CLI at permapath.link/cli.mjs, with `llms.txt` instructions to use a key the user provides (preferably a separate one).
-  - Optional: also publish as an npm package (`npx permapath …`).
-  - Optionally add a *local* MCP server (`npx permapath-mcp`) for Claude Desktop/Code and Cursor, with the key kept on the user's machine. Avoid a remote MCP connector that receives keys; read-only remote tools (link history) are fine.
-  - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
 - **Ownership transfer:** the owner signs "this link now belongs to <public ID>"; the resolver follows the new owner from then on. Transfers must be ordered by when Arweave confirmed them, not by the owner-written Seq, or a previous owner could backdate a transfer back to themselves; so a transfer takes effect after confirmation (up to about an hour). About 2–3 days with the editor screen.
-- **Phone, text and email destinations** (`tel:`, `sms:`, `mailto:` on a short allow list). Browsers ask before opening another app, so the resolver would show a button to tap. Contact cards already cover most of this.
-- **Smart routing:** device, schedule and auto-off shipped in v3. Not done: by language.
-- **Last-known destination:** if every lookup fails, send a repeat visitor to the destination their phone saw last time.
 
 ## Deliberately not planned
 

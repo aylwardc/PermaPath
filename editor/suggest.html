@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suggest a feature · PermaPath</title>
+<meta name="description" content="Tell us what you'd like PermaPath to do.">
+<meta name="robots" content="noindex">
+<link rel="canonical" href="https://permapath.link/suggest.html">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0b6bcb">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6bcb'/%3E%3Cpath d='M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4zM10 10h2v2h-2z' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+<main class="landing">
+  <p class="small"><a href="./">← PermaPath</a></p>
+  <h1>Suggest a feature</h1>
+  <p class="intro">What would you like PermaPath to do? Ideas, missing features and things that got in your way are all welcome. Only the PermaPath team sees what you send.</p>
+
+  <form id="suggest-form" class="card">
+    <label>Your suggestion
+      <textarea id="suggest-text" rows="6" maxlength="2000" required placeholder="I’d like to be able to…"></textarea>
+    </label>
+    <label>Email <span class="muted">(optional: we’ll tell you when it’s done)</span>
+      <input id="suggest-email" type="email" maxlength="200" autocomplete="email" placeholder="you@example.com">
+    </label>
+    <!-- Not for people: bots fill every field, so anything here is dropped. -->
+    <label class="pm-only" aria-hidden="true">Website <input id="suggest-website" tabindex="-1" autocomplete="off"></label>
+    <p class="error" id="suggest-error" hidden></p>
+    <button class="primary" type="submit" id="suggest-send">Send suggestion</button>
+  </form>
+  <div class="card" id="suggest-thanks" hidden>
+    <h2>Thank you!</h2>
+    <p id="suggest-thanks-text">We read every suggestion.</p>
+    <p><a href="./">Back to PermaPath</a></p>
+  </div>
+  <p class="muted small">Developers can also open an issue on <a href="https://github.com/aylwardc/PermaPath/issues" rel="noopener">GitHub</a>.</p>
+</main>
+<script type="module">
+// Pre-filled by AI assistants: suggest.html?text=…&source=ai (the person still reviews and sends it).
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+if (params.get('text')) $('suggest-text').value = params.get('text').slice(0, 2000);
+const source = ['ai', 'website'].includes(params.get('source')) ? params.get('source') : 'website';
+$('suggest-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const error = $('suggest-error');
+  error.hidden = true;
+  $('suggest-send').disabled = true;
+  $('suggest-send').textContent = 'Sending…';
+  try {
+    const res = await fetch('https://permapath.link/api/suggest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: $('suggest-text').value, email: $('suggest-email').value, source, website: $('suggest-website').value }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Something went wrong. Please try again.');
+    $('suggest-form').hidden = true;
+    $('suggest-thanks').hidden = false;
+    if ($('suggest-email').value) $('suggest-thanks-text').textContent = 'We read every suggestion, and we’ll email you if it gets built.';
+  } catch (err) {
+    error.textContent = err.message === 'Failed to fetch' ? 'Couldn’t reach PermaPath. Check your connection and try again.' : err.message;
+    error.hidden = false;
+    $('suggest-send').disabled = false;
+    $('suggest-send').textContent = 'Send suggestion';
+  }
+});
+</script>
+</body>
+</html>

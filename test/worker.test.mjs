@@ -178,3 +178,37 @@ test('api: counts scans per link and reports them', async () => {
 test('api: scan endpoints say so when counting is not configured', async () => {
   assert.equal((await worker.fetch(new Request(`https://permapath.link/api/scan?l=${'A'.repeat(43)}`, { method: 'POST' }))).status, 503);
 });
+
+// ---------- feature suggestions ----------
+
+const { SuggestionBox } = await import('../worker/src/index.js');
+function fakeBox() {
+  const db = new DatabaseSync(':memory:');
+  const sql = { exec: (q, ...p) => { const st = db.prepare(q); const rows = /^\s*select/i.test(q) ? st.all(...p) : (st.run(...p), []); return { toArray: () => rows }; } };
+  const box = new SuggestionBox({ storage: { sql } });
+  return { idFromName: (n) => n, get: () => ({ fetch: (u, init) => box.fetch(new Request(u, init)) }) };
+}
+
+test('api: suggestions are accepted, rate limited, and only readable with the admin key', async () => {
+  const env = { SUGGESTIONS: fakeBox(), SUGGEST_ADMIN_KEY: 'k'.repeat(32) };
+  const suggest = (body, ip = '1.2.3.4') => worker.fetch(new Request('https://permapath.link/api/suggest', {
+    method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip },
+  }), env);
+  let res = await suggest({ text: 'Please add NFC tags too', email: 'a@b.co', source: 'mcp' });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+  assert.equal((await suggest({ text: 'hi' })).status, 400, 'too short');
+  assert.equal((await suggest({ text: 'Fine idea', email: 'not-an-email' })).status, 400);
+  assert.deepEqual(await (await suggest({ text: 'spam spam spam', website: 'x' })).json(), { ok: true }, 'honeypot pretends to accept');
+  for (let i = 0; i < 4; i++) assert.equal((await suggest({ text: `idea number ${i}` })).status, 200);
+  assert.equal((await suggest({ text: 'one more idea' })).status, 429, 'five per hour per sender');
+  assert.equal((await suggest({ text: 'from someone else' }, '5.6.7.8')).status, 200);
+
+  assert.equal((await worker.fetch(req('/api/suggestions'), env)).status, 404, 'hidden without the key');
+  const list = async (after = 0) => (await (await worker.fetch(new Request(`https://permapath.link/api/suggestions?after=${after}`, { headers: { authorization: `Bearer ${'k'.repeat(32)}` } }), env)).json()).suggestions;
+  const all = await list();
+  assert.equal(all.length, 6);
+  assert.deepEqual({ text: all[0].text, email: all[0].email, source: all[0].source }, { text: 'Please add NFC tags too', email: 'a@b.co', source: 'mcp' });
+  assert.equal(all[0].who, undefined, 'the sender hash is never returned');
+  assert.equal((await list(all[4].id)).length, 1);
+});

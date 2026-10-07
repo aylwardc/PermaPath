@@ -70,6 +70,7 @@ async function parseItem(bytes) {
 export function createFakeArweave() {
   const items = new Map();
   const passedThrough = new Set(); // non-local hosts it let through, to spot leaks
+  const suggestions = []; // what /api/suggest received
 
   function search({ query, variables = {} }) {
     const varOrList = (text) => (text.startsWith('$') ? variables[text.slice(1)] : JSON.parse(text));
@@ -121,6 +122,10 @@ export function createFakeArweave() {
       return json(search(JSON.parse(Buffer.from(body).toString('utf8'))));
     }
     if (u.host === 'permapath.link' && u.pathname === '/api/scan') return { status: 204, headers: CORS, body: '' };
+    if (u.host === 'permapath.link' && u.pathname === '/api/suggest' && method === 'POST') {
+      suggestions.push(JSON.parse(Buffer.from(body).toString('utf8')));
+      return json({ ok: true });
+    }
     if (u.host === 'permapath.link' && u.pathname === '/api/scans') return json({ counts: Object.fromEntries((u.searchParams.get('l') || '').split(',').filter(Boolean).map((l) => [l, 0])) });
     if (u.host === 'permapath.link' && u.pathname.startsWith('/api/scans/')) return json({ link: u.pathname.split('/').pop(), total: 0, days: [] });
     const raw = new RegExp(`^/(?:raw/|api/raw/)?(${ID})$`).exec(u.pathname);
@@ -136,6 +141,7 @@ export function createFakeArweave() {
   return {
     items,
     passedThrough,
+    suggestions,
     handle,
     // Browser side: every request in the context goes through the fake first.
     async install(context) {

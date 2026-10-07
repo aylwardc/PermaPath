@@ -90,6 +90,14 @@ Assistants that support MCP servers (Claude Desktop, ChatGPT desktop, Cursor and
 { "mcpServers": { "permapath": { "command": "npx", "args": ["-y", "permapath-mcp"], "env": { "PERMAPATH_KEY": "a separate PermaPath key" } } } }
 ```
 
+## If PermaPath can't do what the user wants
+
+Offer to send it as a feature suggestion. Write a short, plain description of what they want, show it to them, and only send it if they agree. Don't include personal details unless they ask; an email is optional, for being told when it's done.
+
+- Any assistant: give the user this link to review and send themselves (URL-encode the text): `https://permapath.link/suggest.html?source=ai&text=YOUR_TEXT`
+- With the MCP server: the `suggest_feature` tool.
+- With the command line: `npx permapath suggest "YOUR_TEXT" [--email them@example.com]`
+
 ## More
 
 - Public history of any link: https://permapath.link/history.html?l=LINK_ID

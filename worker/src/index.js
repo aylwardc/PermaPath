@@ -3,7 +3,7 @@
 // visited directly, which would stop password managers autofilling keys and
 // drop the editor's local state. QR codes never point here.
 // EDITOR_TX is set by `node scripts/deploy.mjs editor`.
-export const EDITOR_TX = 'IjFU6SHmAfrCd631XiOB5OsRQ1EafL6h-FSnmIDfX1o';
+export const EDITOR_TX = '7uU_SZK7yhNd0Psd9z10ZiSylC9dgfnWaNIJsOjxTpc';
 // Tried in order. arweave.net may refuse requests from Cloudflare Workers, so
 // fall back to other gateways that serve path manifests.
 const GATEWAYS = ['https://arweave.net', 'https://turbo-gateway.com', 'https://ardrive.net'];
@@ -127,8 +127,79 @@ async function scans(url, request, env) {
   return new Response('Not found', { status: 404 });
 }
 
+// ---------- feature suggestions ----------
+// POST /api/suggest { text, email?, source? } from the website form, AI
+// assistants (pre-filled link, MCP tool) and the CLI. Kept privately in a
+// Durable Object; goodspeed fetches new ones (GET /api/suggestions with the
+// SUGGEST_ADMIN_KEY secret) and emails them to Chris. Never public.
+const SUGGEST_MAX = 2000;
+const SOURCES = new Set(['website', 'ai', 'mcp', 'cli']);
+const PER_IP_PER_HOUR = 5;
+const PER_DAY = 200;
+
+export class SuggestionBox {
+  constructor(ctx) {
+    this.sql = ctx.storage.sql;
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS suggestions (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL,
+      text TEXT NOT NULL, email TEXT NOT NULL DEFAULT '', source TEXT NOT NULL, who TEXT NOT NULL)`);
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (url.pathname === '/add') {
+      const s = await request.json();
+      const now = Date.now();
+      const [{ mine }] = this.sql.exec('SELECT COUNT(*) AS mine FROM suggestions WHERE who = ? AND at > ?', s.who, now - 3600_000).toArray();
+      const [{ all }] = this.sql.exec('SELECT COUNT(*) AS "all" FROM suggestions WHERE at > ?', now - 86400_000).toArray();
+      if (mine >= PER_IP_PER_HOUR || all >= PER_DAY) return Response.json({ error: 'Too many suggestions right now. Please try again later.' }, { status: 429 });
+      this.sql.exec('INSERT INTO suggestions (at, text, email, source, who) VALUES (?, ?, ?, ?, ?)', now, s.text, s.email, s.source, s.who);
+      return Response.json({ ok: true });
+    }
+    if (url.pathname === '/list') {
+      const after = Number(url.searchParams.get('after')) || 0;
+      return Response.json({ suggestions: this.sql.exec('SELECT id, at, text, email, source FROM suggestions WHERE id > ? ORDER BY id LIMIT 200', after).toArray() });
+    }
+    return new Response('Not found', { status: 404 });
+  }
+}
+
+async function sha256Hex(text) {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  return [...d].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function suggestions(url, request, env) {
+  if (!env?.SUGGESTIONS) return new Response('Suggestions are not configured', { status: 503 });
+  const box = env.SUGGESTIONS.get(env.SUGGESTIONS.idFromName('all'));
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' };
+  if (url.pathname === '/api/suggest') {
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...cors, 'access-control-allow-methods': 'POST' } });
+    if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: { allow: 'POST' } });
+    let body;
+    try { body = await request.json(); } catch { return Response.json({ error: 'Send JSON: { "text": "…" }' }, { status: 400, headers: cors }); }
+    if (body.website) return Response.json({ ok: true }, { headers: cors }); // honeypot field: bots fill it, people never see it
+    const text = String(body.text || '').trim();
+    const email = String(body.email || '').trim().slice(0, 200);
+    if (text.length < 5) return Response.json({ error: 'Tell us a little more (at least a few words).' }, { status: 400, headers: cors });
+    if (text.length > SUGGEST_MAX) return Response.json({ error: `Please keep it under ${SUGGEST_MAX} characters.` }, { status: 400, headers: cors });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Response.json({ error: 'That email address doesn’t look right.' }, { status: 400, headers: cors });
+    const source = SOURCES.has(body.source) ? body.source : 'website';
+    // Only a salted hash of the IP is kept, to limit how often one sender can post.
+    const who = await sha256Hex(`${env.SUGGEST_ADMIN_KEY || 'permapath'}|${request.headers.get('cf-connecting-ip') || ''}`);
+    const res = await box.fetch('https://box/add', { method: 'POST', body: JSON.stringify({ text, email, source, who }) });
+    return new Response(res.body, { status: res.status, headers: { 'content-type': 'application/json', ...cors } });
+  }
+  if (url.pathname === '/api/suggestions' && request.method === 'GET') {
+    const auth = request.headers.get('authorization') || '';
+    if (!env.SUGGEST_ADMIN_KEY || auth !== `Bearer ${env.SUGGEST_ADMIN_KEY}`) return new Response('Not found', { status: 404 });
+    return box.fetch(`https://box/list?after=${Number(url.searchParams.get('after')) || 0}`);
+  }
+  return new Response('Not found', { status: 404 });
+}
+
 async function api(url, request, env) {
   if (url.pathname === '/api/scan' || url.pathname.startsWith('/api/scans')) return scans(url, request, env);
+  if (url.pathname === '/api/suggest' || url.pathname === '/api/suggestions') return suggestions(url, request, env);
   const graphql = url.pathname.match(/^\/api\/graphql\/([a-z]+)$/);
   if (graphql && GRAPHQL_UPSTREAMS[graphql[1]] && request.method === 'POST') return relay(GRAPHQL_UPSTREAMS[graphql[1]], request);
   if (url.pathname === '/api/upload' && request.method === 'POST') return relay(UPLOAD_UPSTREAMS, request);

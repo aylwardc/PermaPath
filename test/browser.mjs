@@ -671,7 +671,7 @@ if (which === 'all' || which === 'editor') {
       await page.getByRole('button', { name: 'Create link' }).click();
       await page.locator('.link-item', { hasText: name }).waitFor();
     }
-    assert.equal(await page.getByRole('link', { name: 'Printing tips' }).getAttribute('href'), 'print.html');
+    assert.equal(await page.locator('#tips-link').getAttribute('href'), 'print.html');
     await page.locator('.view-toggle').getByText('Table').click();
     const names = () => page.locator('.links-table td.name').allTextContents();
     assert.deepEqual(await names(), ['Cherry', 'Apple', 'Banana'], 'newest first by default');
@@ -796,6 +796,14 @@ if (which === 'all' || which === 'editor') {
     assert.equal(await page.locator('input[name=design-style]:checked').getAttribute('value'), 'rounded');
     assert.equal(await page.locator('#design-fg').inputValue(), '#1d3557');
     await page.locator('#qr-big image').waitFor({ timeout: 30_000 }); // logo loaded from Arweave (fake)
+  });
+  await check('suggest page: pre-filled by an AI link, sent once the person presses Send', async (page) => {
+    await page.goto(`${base}/suggest.html?source=ai&text=${encodeURIComponent('Add NFC tags that work like the QR codes')}`);
+    assert.equal(await page.locator('#suggest-text').inputValue(), 'Add NFC tags that work like the QR codes');
+    await page.locator('#suggest-email').fill('me@example.com');
+    await page.getByRole('button', { name: 'Send suggestion' }).click();
+    await page.getByText('we’ll email you if it gets built').waitFor();
+    if (fake) assert.deepEqual(fake.suggestions.at(-1), { text: 'Add NFC tags that work like the QR codes', email: 'me@example.com', source: 'ai', website: '' });
   });
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);

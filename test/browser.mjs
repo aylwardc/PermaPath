@@ -723,7 +723,7 @@ if (which === 'all' || which === 'editor') {
     assert.equal(await page.locator('#edit-event-start').inputValue(), '2030-05-04T10:00');
     assert.equal(await page.locator('input[name=edit-kind]:checked').getAttribute('value'), 'event');
   });
-  await check('QR designs all scan (both styles, colors, label, logo, sturdy, small sizes)', async (page) => {
+  await check('QR designs all scan (styles, colors, labels, frames, icons, logo, sturdy, small sizes)', async (page) => {
     await page.goto(base);
     await page.addScriptTag({ path: path.join(root, 'node_modules/jsqr/dist/jsQR.js') });
     const url = 'https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE?l=8NiAUY8SAUDkrHw7VCmjVc8M708VTCkmNmBbtyidhRc';
@@ -738,6 +738,8 @@ if (which === 'all' || which === 'editor') {
         {}, { style: 'rounded' }, { fg: '#1d3557', bg: '#f1faee' }, { label: 'Scan for the menu' },
         { logo: 'https://arweave.net/' + 'L'.repeat(43) }, { style: 'rounded', logo: 'https://arweave.net/' + 'L'.repeat(43), fg: '#264653' },
         { sturdy: true, style: 'rounded' }, { transparent: true, style: 'rounded' },
+        { frame: 'square' }, { frame: 'rounded', label: 'Scan for the menu' }, { frame: 'bar', fg: '#1d3557' }, { frame: 'bar', transparent: true },
+        { icon: 'coffee' }, { icon: 'menu', style: 'rounded', frame: 'bar', label: 'Menu' }, { icon: 'calendar', fg: '#264653', bg: '#f1faee' },
       ];
       const out = [];
       for (const d of designs) {
@@ -768,21 +770,29 @@ if (which === 'all' || which === 'editor') {
     await page.locator('#create-name').fill('Designed');
     await page.getByRole('button', { name: 'Create link' }).click();
     await openCreated(page, 'Designed');
-    await page.locator('#design-box summary').click();
+    await page.getByRole('button', { name: 'Customize QR code' }).click();
+    await page.locator('#design-dialog').waitFor({ state: 'visible' });
     await page.locator('#design-label').fill('Scan for the menu');
-    await page.locator('#design-box').getByText('Rounded').click();
+    await page.getByRole('radiogroup', { name: 'Style' }).getByText('Rounded').click();
+    await page.locator('#design-dialog').getByText('Label bar').click();
     await page.locator('#design-fg').fill('#cccccc');
     await page.locator('#design-error').getByText(/too close/).waitFor();
     assert.equal(await page.locator('#design-save').isDisabled(), true, 'faint colors cannot be saved');
     await page.locator('#design-fg').fill('#1d3557');
     await page.locator('#design-logo').setInputFiles(path.join(root, 'editor/apple-touch-icon.png'));
-    await page.locator('#qr-big image').waitFor();
-    assert.match(await page.locator('#qr-big').innerHTML(), />Scan for the menu</);
-    const [svg] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download SVG' }).click()]);
+    await page.locator('#design-preview image').waitFor();
+    assert.match(await page.locator('#design-preview').innerHTML(), />Scan for the menu</);
+    const [svg] = await Promise.all([page.waitForEvent('download'), page.locator('#design-svg').click()]);
     assert.match(fs.readFileSync(await svg.path(), 'utf8'), /<image href="data:image\/jpeg;base64,/, 'SVG download embeds the logo');
     await page.getByRole('button', { name: 'Save design' }).click();
     await page.locator('#design-save', { hasText: 'Saved' }).waitFor({ timeout: 30_000 });
-    await page.getByRole('button', { name: 'Done' }).click();
+    // Switching to a built-in icon replaces the logo.
+    await page.locator('#design-icons').getByRole('radio', { name: 'Coffee' }).click();
+    assert.doesNotMatch(await page.locator('#design-preview').innerHTML(), /<image/);
+    assert.equal(await page.locator('#design-sturdy').isChecked(), true, 'icons use extra error correction');
+    await page.getByRole('button', { name: 'Save design' }).click();
+    await page.locator('#design-save', { hasText: 'Saved' }).waitFor({ timeout: 30_000 });
+    await page.locator('#design-done').click();
     // The design comes back from the link's record once the update is indexed.
     const card = page.locator('.link-item', { hasText: 'Designed' });
     for (let i = 0; i < 30; i++) {
@@ -790,12 +800,16 @@ if (which === 'all' || which === 'editor') {
       await page.waitForTimeout(1000);
       if (!(await card.locator('.chip', { hasText: /Updating|New/ }).count())) break;
     }
-    await card.locator('h3').click();
-    await page.locator('#qr-dialog').waitFor({ state: 'visible' });
+    await card.getByRole('button', { name: 'Customize QR' }).click();
+    await page.locator('#design-dialog').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#design-label').inputValue(), 'Scan for the menu');
     assert.equal(await page.locator('input[name=design-style]:checked').getAttribute('value'), 'rounded');
+    assert.equal(await page.locator('input[name=design-frame]:checked').getAttribute('value'), 'bar');
     assert.equal(await page.locator('#design-fg').inputValue(), '#1d3557');
-    await page.locator('#qr-big image').waitFor({ timeout: 30_000 }); // logo loaded from Arweave (fake)
+    assert.equal(await page.locator('#design-icons [aria-checked=true]').getAttribute('data-icon'), 'coffee');
+    await page.locator('#design-done').click();
+    await card.locator('h3').click(); // the QR pop-up shows the saved design
+    assert.match(await page.locator('#qr-big').innerHTML(), />Scan for the menu</);
   });
   await check('suggest page: pre-filled by an AI link, sent once the person presses Send', async (page) => {
     await page.goto(`${base}/suggest.html?source=ai&text=${encodeURIComponent('Add NFC tags that work like the QR codes')}`);

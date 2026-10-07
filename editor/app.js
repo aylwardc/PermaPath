@@ -1,4 +1,4 @@
-import { qrSvg, drawQr, qrCanvasSize, cleanDesign, checkDesign } from './qr.js';
+import { qrSvg, drawQr, qrCanvasSize, cleanDesign, checkDesign, ICONS } from './qr.js';
 import { loadLogo, loadedLogo, remember, imageFromDataUrl } from './logos.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
 import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
@@ -89,7 +89,7 @@ function logoFor(design) {
   const logo = loadedLogo(design.logo);
   if (!logo && !(Date.now() - (logoWaits.get(design.logo) || 0) < 60_000)) {
     logoWaits.set(design.logo, Date.now());
-    loadLogo(design.logo).then((l) => { if (l) { render(); if (qrLink) previewQr(); } });
+    loadLogo(design.logo).then((l) => { if (l) { render(); showQr(); if (designLink && $('design-dialog').open) previewDesign(); } });
   }
   return logo;
 }
@@ -152,38 +152,9 @@ function download(blob, filename) {
 
 const fileBase = (link) => `permapath-${(link.name || link.id.slice(0, 8)).replace(/[^\w-]+/g, '-').toLowerCase()}`;
 
-// The QR dialog shows a draft design: edits preview live, downloads use the
-// draft, and Save design writes it to the link.
+// ---------- QR dialog (view, share, download the saved design) ----------
+
 let qrLink = null;
-let draft = {};
-let draftLogo = null; // { url, dataUrl, img } for a logo chosen but not uploaded yet
-// Stands in for a chosen logo's address until Save design uploads it.
-const PENDING_LOGO = `https://arweave.net/${'_'.repeat(43)}`;
-
-function previewQr() {
-  $('qr-big').innerHTML = designedSvg(qrLink, 4, draft);
-  $('qr-big').classList.toggle('checker', !!draft.transparent);
-  const { error, warnings } = checkDesign(draft);
-  $('design-notes').replaceChildren(...warnings.map((w) => h('p', {}, w)));
-  showError($('design-error'), error ? new Error(error) : null);
-  $('design-save').disabled = !!error || JSON.stringify(cleanDesign(draft)) === JSON.stringify(cleanDesign(qrLink.design || {}));
-  $('design-logo-row').hidden = !draft.logo;
-  // A logo always uses the extra error correction.
-  $('design-sturdy').checked = !!(draft.sturdy || draft.logo);
-  $('design-sturdy').disabled = !!draft.logo;
-}
-
-function loadDraft(design) {
-  draft = { ...cleanDesign(design) };
-  if (draft.logo !== PENDING_LOGO) draftLogo = null;
-  $('design-label').value = draft.label || '';
-  for (const r of document.querySelectorAll('input[name="design-style"]')) r.checked = r.value === (draft.style || 'square');
-  $('design-fg').value = draft.fg || '#000000';
-  $('design-bg').value = draft.bg || '#ffffff';
-  $('design-transparent').checked = !!draft.transparent;
-  $('design-sturdy').checked = !!draft.sturdy;
-  $('design-logo').value = '';
-}
 
 function openQr(link) {
   qrLink = link;
@@ -192,11 +163,86 @@ function openQr(link) {
   $('qr-url').href = url;
   $('qr-url').textContent = url;
   $('qr-history').href = `history.html?l=${link.id}`;
-  loadDraft(link.design || {});
-  $('design-box').open = false;
-  $('design-save').textContent = 'Save design';
-  previewQr();
+  showQr();
   $('qr-dialog').showModal();
+}
+function showQr() {
+  if (!qrLink) return;
+  $('qr-big').innerHTML = designedSvg(qrLink, 4, qrLink.design || {});
+  $('qr-big').classList.toggle('checker', !!qrLink.design?.transparent);
+}
+
+$('qr-png').addEventListener('click', () => download(qrPngBlobSync(qrLink), `${fileBase(qrLink)}.png`));
+$('qr-svg').addEventListener('click', () => download(new Blob([designedSvg(qrLink, 4, qrLink.design || {})], { type: 'image/svg+xml' }), `${fileBase(qrLink)}.svg`));
+$('qr-copy').addEventListener('click', (e) => copy(linkUrl(qrLink.id), e.currentTarget));
+$('qr-share').textContent = shareLabel;
+$('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget));
+$('qr-customize').addEventListener('click', () => { $('qr-dialog').close(); openDesign(qrLink); });
+
+// ---------- Customize QR dialog ----------
+// Edits preview live on a draft; downloads use the draft; Save design writes it
+// to the link (a logo is uploaded then).
+
+let designLink = null;
+let draft = {};
+let draftLogo = null; // { url, dataUrl, img } for a logo chosen but not uploaded yet
+// Stands in for a chosen logo's address until Save design uploads it.
+const PENDING_LOGO = `https://arweave.net/${'_'.repeat(43)}`;
+
+// The icon picker: "None" plus the built-in icons, drawn from the same paths as the codes.
+$('design-icons').replaceChildren(
+  h('button', { type: 'button', role: 'radio', 'data-icon': '', title: 'No icon', 'aria-label': 'No icon' }, 'None'),
+  ...Object.entries(ICONS).map(([key, { label, d }]) => {
+    const b = h('button', { type: 'button', role: 'radio', 'data-icon': key, title: label, 'aria-label': label });
+    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return b;
+  }),
+);
+$('design-icons').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-icon]');
+  if (!b) return;
+  draft = { ...draft, icon: b.dataset.icon, logo: '' };
+  draftLogo = null;
+  $('design-logo').value = '';
+  previewDesign();
+});
+
+function previewDesign() {
+  $('design-preview').innerHTML = designedSvg(designLink, 4, draft);
+  $('design-preview').classList.toggle('checker', !!draft.transparent);
+  const { error, warnings } = checkDesign(draft);
+  $('design-notes').replaceChildren(...warnings.map((w) => h('p', {}, w)));
+  showError($('design-error'), error ? new Error(error) : null);
+  const unchanged = JSON.stringify(cleanDesign(draft)) === JSON.stringify(cleanDesign(designLink.design || {}));
+  $('design-save').disabled = !!error || unchanged;
+  if (!unchanged) $('design-save').textContent = 'Save design';
+  $('design-logo-row').hidden = !draft.logo;
+  for (const b of $('design-icons').children) b.setAttribute('aria-checked', String(!draft.logo && (draft.icon || '') === b.dataset.icon));
+  // A logo or icon always uses the extra error correction.
+  $('design-sturdy').checked = !!(draft.sturdy || draft.logo || draft.icon);
+  $('design-sturdy').disabled = !!(draft.logo || draft.icon);
+}
+
+function loadDraft(design) {
+  draft = { ...cleanDesign(design) };
+  if (draft.logo !== PENDING_LOGO) draftLogo = null;
+  $('design-label').value = draft.label || '';
+  for (const r of document.querySelectorAll('input[name="design-style"]')) r.checked = r.value === (draft.style || 'square');
+  for (const r of document.querySelectorAll('input[name="design-frame"]')) r.checked = r.value === (draft.frame || '');
+  $('design-fg').value = draft.fg || '#000000';
+  $('design-bg').value = draft.bg || '#ffffff';
+  $('design-transparent').checked = !!draft.transparent;
+  $('design-sturdy').checked = !!draft.sturdy;
+  $('design-logo').value = '';
+}
+
+function openDesign(link) {
+  designLink = link;
+  $('design-for').textContent = link.name || 'Untitled link';
+  loadDraft(link.design || {});
+  $('design-save').textContent = 'Save design';
+  previewDesign();
+  $('design-dialog').showModal();
 }
 
 function readDraft() {
@@ -204,33 +250,35 @@ function readDraft() {
     ...draft,
     label: $('design-label').value,
     style: document.querySelector('input[name="design-style"]:checked').value,
+    frame: document.querySelector('input[name="design-frame"]:checked').value,
     fg: $('design-fg').value,
     bg: $('design-bg').value,
     transparent: $('design-transparent').checked,
     sturdy: $('design-sturdy').checked,
   };
   $('design-save').textContent = 'Save design';
-  previewQr();
+  previewDesign();
 }
 for (const id of ['design-label', 'design-fg', 'design-bg', 'design-transparent', 'design-sturdy']) $(id).addEventListener('input', readDraft);
-for (const r of document.querySelectorAll('input[name="design-style"]')) r.addEventListener('change', readDraft);
+for (const r of document.querySelectorAll('input[name="design-style"], input[name="design-frame"]')) r.addEventListener('change', readDraft);
 $('design-logo').addEventListener('change', async () => {
   const file = $('design-logo').files[0];
   if (!file) return;
   try {
     const dataUrl = await compressImage(file, 30 * 1024);
     draftLogo = { url: PENDING_LOGO, dataUrl, img: await imageFromDataUrl(dataUrl) };
-    draft = { ...draft, logo: PENDING_LOGO };
-    previewQr();
+    draft = { ...draft, logo: PENDING_LOGO, icon: '' };
+    previewDesign();
   } catch (err) {
     showError($('design-error'), err);
   }
 });
-$('design-logo-remove').addEventListener('click', () => { draft = { ...draft, logo: '' }; draftLogo = null; $('design-logo').value = ''; previewQr(); });
-$('design-reset').addEventListener('click', () => { loadDraft({}); previewQr(); });
+$('design-logo-remove').addEventListener('click', () => { draft = { ...draft, logo: '' }; draftLogo = null; $('design-logo').value = ''; previewDesign(); });
+$('design-reset').addEventListener('click', () => { loadDraft({}); previewDesign(); });
 $('design-save').addEventListener('click', async (e) => {
-  const link = links.find((l) => l.id === qrLink.id);
+  const link = links.find((l) => l.id === designLink.id);
   if (!link) return;
+  let saved = false;
   await busy(e.currentTarget, async () => {
     try {
       let design = { ...draft };
@@ -242,22 +290,22 @@ $('design-save').addEventListener('click', async (e) => {
       }
       design = cleanDesign(design);
       await saveUpdate(link, { design });
-      qrLink = { ...qrLink, design };
+      designLink = { ...designLink, design };
+      if (qrLink?.id === designLink.id) qrLink = { ...qrLink, design };
       loadDraft(design);
-      previewQr();
+      previewDesign();
+      saved = true;
     } catch (err) {
       showError($('design-error'), err);
     }
   });
-  $('design-save').textContent = 'Saved';
-  $('design-save').disabled = true;
+  if (saved) {
+    $('design-save').textContent = 'Saved';
+    $('design-save').disabled = true;
+  }
 });
-
-$('qr-png').addEventListener('click', () => download(qrPngBlobSync(qrLink, draft), `${fileBase(qrLink)}.png`));
-$('qr-svg').addEventListener('click', () => download(new Blob([designedSvg(qrLink, 4, draft)], { type: 'image/svg+xml' }), `${fileBase(qrLink)}.svg`));
-$('qr-copy').addEventListener('click', (e) => copy(linkUrl(qrLink.id), e.currentTarget));
-$('qr-share').textContent = shareLabel;
-$('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget, draft));
+$('design-png').addEventListener('click', () => download(qrPngBlobSync(designLink, draft), `${fileBase(designLink)}.png`));
+$('design-svg').addEventListener('click', () => download(new Blob([designedSvg(designLink, 4, draft)], { type: 'image/svg+xml' }), `${fileBase(designLink)}.svg`));
 
 // ---------- sign in / new key ----------
 
@@ -578,8 +626,10 @@ function renderTable() {
         h('button', { type: 'button', onclick: (e) => shareQr(view, e.currentTarget) }, shareLabel), ' ',
         view.destination
           ? [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'), ' ',
+            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'), ' ',
             h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off')]
-          : h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination')),
+          : [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'), ' ',
+            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR')]),
     );
   });
   $('links-table').replaceChildren(h('table', { class: 'links-table' }, h('thead', {}, head), h('tbody', {}, rows)));
@@ -635,9 +685,13 @@ function render() {
           view.destination
             ? [
               h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'),
+              h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'),
               h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off'),
             ]
-            : h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'),
+            : [
+              h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'),
+              h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'),
+            ],
         ),
       ),
     );

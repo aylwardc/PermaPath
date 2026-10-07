@@ -300,6 +300,7 @@ a.header-btn { border: 1px solid var(--line); background: var(--card); color: va
 .design-box[open] summary { margin-bottom: .75rem; }
 .design-box .seg span { font-size: .85rem; padding: .4rem; }
 .colors input[type=color] { display: block; width: 100%; height: 2.5rem; margin-top: .3rem; padding: .15rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-.design-notes { margin: 0 0 .5rem; padding-left: 1.1rem; }
+.design-notes { margin: 0 0 .5rem; }
+.design-notes p { margin: 0 0 .4rem; }
 .design-notes:empty { display: none; }
 .qr-big.checker { background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 16px 16px; }

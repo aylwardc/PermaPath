@@ -347,7 +347,6 @@
         <div class="seg">
           <label><input type="radio" name="design-style" value="square" checked><span>Squares</span></label>
           <label><input type="radio" name="design-style" value="rounded"><span>Rounded</span></label>
-          <label><input type="radio" name="design-style" value="dots"><span>Dots</span></label>
         </div>
       </fieldset>
       <div class="pair colors">
@@ -359,14 +358,13 @@
         <input id="design-logo" type="file" accept="image/*">
       </label>
       <p class="small" id="design-logo-row" hidden><button type="button" class="link" id="design-logo-remove">Remove logo</button></p>
-      <label class="switch"><input type="checkbox" role="switch" class="switch-input" id="design-sturdy"> Extra sturdy (outdoors, scratches, dirt)</label>
-      <ul class="design-notes muted small" id="design-notes"></ul>
+      <label class="switch"><input type="checkbox" role="switch" class="switch-input" id="design-sturdy"> Extra sturdy (for logos, outdoors, scratches)</label>
+      <div class="design-notes muted small" id="design-notes"></div>
       <p class="error" id="design-error" hidden></p>
       <div class="row">
         <button type="button" id="design-reset">Plain</button>
         <button type="button" class="primary" id="design-save">Save design</button>
       </div>
-      <p class="muted small">Saved with the link, so downloads match on every device. Like the link’s name, the design is public.</p>
     </details>
     <button class="primary" value="close">Done</button>
   </form>

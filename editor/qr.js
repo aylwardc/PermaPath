@@ -1,5 +1,5 @@
-// QR codes: the module matrix, plus designed rendering (colors, square /
-// rounded / dot modules, a center logo, a label underneath) to SVG or to a
+// QR codes: the module matrix, plus designed rendering (colors, square or
+// rounded modules, a center logo, a label underneath) to SVG or to a
 // canvas. Shared by the editor, the history page and the CLI (no DOM needed
 // for SVG).
 import qrcode from './vendor/qrcode.mjs';
@@ -19,7 +19,9 @@ export function qrMatrix(text, ec = 'M') {
 // matches. All fields optional:
 //   fg, bg       '#rrggbb' (default black on white)
 //   transparent  no background (for stickers, engraving, print shops)
-//   style        'square' | 'rounded' | 'dots'
+//   style        'square' | 'rounded' (dots were dropped 2026-10-07: they read
+//                worse than squares or rounded, especially with a logo; old
+//                'dots' designs show as rounded)
 //   label        short text under the code, e.g. 'Scan for the menu'
 //   logo         'https://arweave.net/<id>' image shown in the middle
 //   sturdy       extra error correction (outdoors, scratches)
@@ -32,7 +34,7 @@ export function cleanDesign(d = {}) {
   if (HEX.test(d.fg || '') && d.fg.toLowerCase() !== '#000000') out.fg = d.fg.toLowerCase();
   if (HEX.test(d.bg || '') && d.bg.toLowerCase() !== '#ffffff') out.bg = d.bg.toLowerCase();
   if (d.transparent) out.transparent = true;
-  if (d.style === 'rounded' || d.style === 'dots') out.style = d.style;
+  if (d.style === 'rounded' || d.style === 'dots') out.style = 'rounded';
   const label = String(d.label || '').replace(/\s+/g, ' ').trim().slice(0, LABEL_MAX);
   if (label) out.label = label;
   if (/^https:\/\/arweave\.net\/[A-Za-z0-9_-]{43}$/.test(d.logo || '')) out.logo = d.logo;
@@ -61,10 +63,7 @@ export function checkDesign(d = {}) {
   if (!d.transparent && contrast(fg, bg) < 3) return { error: 'The code and background colors are too close to scan reliably. Make the code darker or the background lighter.', warnings };
   if (!d.transparent && luminance(fg) > luminance(bg)) warnings.push('Light on dark: some phones can’t read inverted codes. Dark on light is safest.');
   if (d.transparent && luminance(fg) > 0.4) warnings.push('With a transparent background, print this light code on something dark, and test it first.');
-  const fancy = d.style === 'dots' || d.style === 'rounded';
-  if (fancy || d.logo || d.sturdy) {
-    warnings.push('Print this design at 1 inch (2.5 cm) or larger. It’s a little harder for phones to read when tiny.');
-  }
+  if (d.style === 'rounded' || d.logo || d.sturdy) warnings.push('Customized designs may need to be printed larger than plain codes.');
   return { error: null, warnings };
 }
 
@@ -72,9 +71,9 @@ export function checkDesign(d = {}) {
 
 const QUIET = 4; // white border, in modules
 
-// Alignment pattern centres per QR version (spec table, versions 2-20). Dot
-// and rounded styles draw these solid, like the corner squares: as dots,
-// codes often failed to decode.
+// Alignment pattern centres per QR version (spec table, versions 2-20). The
+// rounded style draws these solid, like the corner squares, so they stay
+// easy for scanners to find.
 const ALIGN = [null, [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50],
   [6, 30, 54], [6, 32, 58], [6, 34, 62], [6, 26, 46, 66], [6, 26, 48, 70], [6, 26, 50, 74], [6, 30, 54, 78], [6, 30, 56, 82], [6, 30, 58, 86], [6, 34, 62, 90]];
 
@@ -85,7 +84,7 @@ function layout(text, design = {}, margin = QUIET, { label = true } = {}) {
   const { n, dark } = qrMatrix(text, ecFor(d));
   const size = n + margin * 2;
   const band = label && d.label ? Math.round(size * 0.17) : 0;
-  const fancy = d.style === 'rounded' || d.style === 'dots';
+  const fancy = d.style === 'rounded';
   const finders = [[0, 0], [0, n - 7], [n - 7, 0]];
   const inFinder = (r, c) => finders.some(([fr, fc]) => r >= fr && r < fr + 7 && c >= fc && c < fc + 7);
   // Logo: about 22% of the code's width (odd, so it's centred), cleared with one module of padding.
@@ -137,11 +136,7 @@ export function qrSvg(text, margin = QUIET, design = {}, { logoData = '', label 
   const parts = [];
   if (!d.transparent) parts.push(`<rect width="${L.width}" height="${L.height}" fill="${bg}"/>`);
   let path = '';
-  if (d.style === 'dots') {
-    // A zero-length line with round caps is a dot; far smaller than circles.
-    const dots = L.modules.map(([r, c]) => `M${c + m + 0.5} ${r + m + 0.5}h0`).join('');
-    parts.push(`<path d="${dots}" stroke="${fg}" stroke-width=".84" stroke-linecap="round"/>`);
-  } else if (d.style === 'rounded') {
+  if (d.style === 'rounded') {
     // One rounded square, reused (ids are per drawing: several codes share a page).
     const id = `pp-m${++uses}`;
     parts.push(`<defs><rect id="${id}" x=".05" y=".05" width=".9" height=".9" rx=".3" fill="${fg}"/></defs>`);
@@ -166,7 +161,7 @@ export function qrSvg(text, margin = QUIET, design = {}, { logoData = '', label 
     const fs = r2(L.band * 0.5);
     parts.push(`<text x="${L.width / 2}" y="${r2(L.size + L.band * 0.42)}" text-anchor="middle" dominant-baseline="middle" font-family="${FONT}" font-weight="700" font-size="${fs}" fill="${fg}">${escapeXml(d.label)}</text>`);
   }
-  const fancy = d.style === 'dots' || d.style === 'rounded';
+  const fancy = d.style === 'rounded';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${L.width} ${L.height}"${fancy ? '' : ' shape-rendering="crispEdges"'}>${parts.join('')}</svg>`;
 }
 
@@ -196,11 +191,7 @@ export function drawQr(ctx, text, scale, design = {}, { logoImage = null, margin
   };
   for (const [r, c] of L.modules) {
     const x = (c + m) * s, y = (r + m) * s;
-    if (d.style === 'dots') {
-      ctx.beginPath();
-      ctx.arc(x + s / 2, y + s / 2, s * 0.42, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (d.style === 'rounded') {
+    if (d.style === 'rounded') {
       rounded(x + s * 0.05, y + s * 0.05, s * 0.9, s * 0.9, s * 0.3);
     } else {
       ctx.fillRect(x, y, s, s);

@@ -62,9 +62,9 @@ registry: just Arweave data items and gateway GraphQL.
   and `from`/`until` (`"HH:MM"`, in the `Time-Zone` tag's IANA zone). A rule with an
   unknown condition is skipped. The editor and CLI turn scan counting on for new links.
 - **QR design** (editor-only, resolvers ignore it): a `Design` tag with JSON `{ fg, bg,
-  transparent, style: square|rounded|dots, label, logo: https://arweave.net/<image>, sturdy }`.
-  A logo or `sturdy` uses error correction H (denser: 57 vs 45 modules). Rounded and dot
-  styles draw the finder and alignment patterns solid; every style is decode-tested.
+  transparent, style: square|rounded, label, logo: https://arweave.net/<image>, sturdy }`.
+  A logo or `sturdy` uses error correction H (denser: 57 vs 45 modules). The rounded style
+  draws the finder and alignment patterns solid; every style is decode-tested.
 - **Scan counts:** the Worker keeps a daily total per link (UTC days) in one
   SQLite-backed Durable Object: no IPs, no cookies. Public, unauthenticated, so
   approximate: `GET /api/scans?l=<id>,<id>` (totals, up to 100),

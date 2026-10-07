@@ -8,7 +8,9 @@
     "deploy:editor": "node scripts/deploy.mjs editor",
     "deploy:worker": "node scripts/check-editor.mjs && cd worker && node --env-file=../.env ../node_modules/wrangler/bin/wrangler.js deploy",
     "build:cli": "node scripts/build-cli.mjs",
-    "check:editor": "node scripts/check-editor.mjs"
+    "check:editor": "node scripts/check-editor.mjs",
+    "build:npm": "node scripts/build-npm.mjs",
+    "publish:npm": "node --env-file-if-exists=.env scripts/publish-npm.mjs"
   },
   "devDependencies": {
     "@dha-team/arbundles": "^1.0.4",

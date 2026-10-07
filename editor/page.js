@@ -248,8 +248,9 @@ export function parsePageHtml(html) {
 export async function compressImage(file, maxBytes) {
   const bitmap = await createImageBitmap(file);
   let edge = Math.min(1600, Math.max(bitmap.width, bitmap.height));
+  const smallest = Math.min(200, edge); // small images (like logos) can start below 200px
   try {
-    while (edge >= 200) {
+    while (edge >= smallest) {
       const scale = edge / Math.max(bitmap.width, bitmap.height);
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(bitmap.width * Math.min(1, scale)));

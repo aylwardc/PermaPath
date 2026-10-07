@@ -1,4 +1,5 @@
-import { qrMatrix, qrSvg } from './qr.js';
+import { qrSvg, drawQr, qrCanvasSize, cleanDesign, checkDesign } from './qr.js';
+import { loadLogo, loadedLogo, remember, imageFromDataUrl } from './logos.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
 import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
 import { optionsFields } from './options.js';
@@ -80,24 +81,40 @@ function addPending(state) {
 
 // ---------- QR ----------
 
+// A link's QR code as SVG, with its design (and logo, once loaded).
+const logoWaits = new Map(); // logo url -> when we last started loading it
+function logoFor(design) {
+  if (!design.logo) return null;
+  if (design.logo === draftLogo?.url) return draftLogo;
+  const logo = loadedLogo(design.logo);
+  if (!logo && !(Date.now() - (logoWaits.get(design.logo) || 0) < 60_000)) {
+    logoWaits.set(design.logo, Date.now());
+    loadLogo(design.logo).then((l) => { if (l) { render(); if (qrLink) previewQr(); } });
+  }
+  return logo;
+}
+
+function designedSvg(view, margin = 4, design = view.design || {}, { label = true } = {}) {
+  const logo = logoFor(design);
+  return qrSvg(linkUrl(view.id), margin, design, { logoData: logo?.dataUrl || '', label });
+}
+
 // ~2400px wide: sharp in print up to ~8 in (20 cm) at 300 dpi. Whole-pixel
 // modules keep the edges crisp.
 // Synchronous on purpose: iOS only opens the share sheet if share() is called
-// straight from the tap, with no awaiting first.
-function qrPngBlobSync(text, minWidth = 2400, margin = 4) {
-  const { n, dark } = qrMatrix(text);
-  const scale = Math.ceil(minWidth / (n + margin * 2));
+// straight from the tap, with no awaiting first. (Logos are preloaded.)
+function qrPngBlobSync(view, design = view.design || {}, minWidth = 2400) {
+  const text = linkUrl(view.id);
+  const unit = qrCanvasSize(text, 1, design);
+  const scale = Math.ceil(minWidth / unit.width);
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = (n + margin * 2) * scale;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#000';
-  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (dark(r, c)) ctx.fillRect((c + margin) * scale, (r + margin) * scale, scale, scale);
+  canvas.width = unit.width * scale;
+  canvas.height = unit.height * scale;
+  const logo = logoFor(design);
+  drawQr(canvas.getContext('2d'), text, scale, design, { logoImage: logo?.img || null });
   const bin = atob(canvas.toDataURL('image/png').split(',')[1]);
   return new Blob([Uint8Array.from(bin, (ch) => ch.charCodeAt(0))], { type: 'image/png' });
 }
-const qrPngBlob = async (text) => qrPngBlobSync(text);
 
 // Share the QR image (phones: the system share sheet, which also has Copy and
 // Save Image). Where sharing files isn't supported, copy the image instead.
@@ -106,9 +123,9 @@ const canShareFiles = (() => {
 })();
 const shareLabel = canShareFiles ? 'Share' : 'Copy QR';
 
-function shareQr(link, button) {
+function shareQr(link, button, design) {
   const url = linkUrl(link.id);
-  const blob = qrPngBlobSync(url);
+  const blob = qrPngBlobSync(link, design);
   if (canShareFiles) {
     const file = new File([blob], `${fileBase(link)}.png`, { type: 'image/png' });
     navigator.share({ files: [file], title: link.name || 'QR code', url }).catch((err) => {
@@ -135,23 +152,112 @@ function download(blob, filename) {
 
 const fileBase = (link) => `permapath-${(link.name || link.id.slice(0, 8)).replace(/[^\w-]+/g, '-').toLowerCase()}`;
 
+// The QR dialog shows a draft design: edits preview live, downloads use the
+// draft, and Save design writes it to the link.
 let qrLink = null;
+let draft = {};
+let draftLogo = null; // { url, dataUrl, img } for a logo chosen but not uploaded yet
+// Stands in for a chosen logo's address until Save design uploads it.
+const PENDING_LOGO = `https://arweave.net/${'_'.repeat(43)}`;
+
+function previewQr() {
+  $('qr-big').innerHTML = designedSvg(qrLink, 4, draft);
+  $('qr-big').classList.toggle('checker', !!draft.transparent);
+  const { error, warnings } = checkDesign(draft);
+  $('design-notes').replaceChildren(...warnings.map((w) => h('li', {}, w)));
+  showError($('design-error'), error ? new Error(error) : null);
+  $('design-save').disabled = !!error || JSON.stringify(cleanDesign(draft)) === JSON.stringify(cleanDesign(qrLink.design || {}));
+  $('design-logo-row').hidden = !draft.logo;
+  // A logo always uses the extra error correction.
+  $('design-sturdy').checked = !!(draft.sturdy || draft.logo);
+  $('design-sturdy').disabled = !!draft.logo;
+}
+
+function loadDraft(design) {
+  draft = { ...cleanDesign(design) };
+  if (draft.logo !== PENDING_LOGO) draftLogo = null;
+  $('design-label').value = draft.label || '';
+  for (const r of document.querySelectorAll('input[name="design-style"]')) r.checked = r.value === (draft.style || 'square');
+  $('design-fg').value = draft.fg || '#000000';
+  $('design-bg').value = draft.bg || '#ffffff';
+  $('design-transparent').checked = !!draft.transparent;
+  $('design-sturdy').checked = !!draft.sturdy;
+  $('design-logo').value = '';
+}
+
 function openQr(link) {
   qrLink = link;
   const url = linkUrl(link.id);
   $('qr-title').textContent = link.name || 'Your QR code';
-  $('qr-big').innerHTML = qrSvg(url);
   $('qr-url').href = url;
   $('qr-url').textContent = url;
   $('qr-history').href = `history.html?l=${link.id}`;
+  loadDraft(link.design || {});
+  $('design-box').open = false;
+  $('design-save').textContent = 'Save design';
+  previewQr();
   $('qr-dialog').showModal();
 }
 
-$('qr-png').addEventListener('click', async () => download(await qrPngBlob(linkUrl(qrLink.id)), `${fileBase(qrLink)}.png`));
-$('qr-svg').addEventListener('click', () => download(new Blob([qrSvg(linkUrl(qrLink.id))], { type: 'image/svg+xml' }), `${fileBase(qrLink)}.svg`));
+function readDraft() {
+  draft = {
+    ...draft,
+    label: $('design-label').value,
+    style: document.querySelector('input[name="design-style"]:checked').value,
+    fg: $('design-fg').value,
+    bg: $('design-bg').value,
+    transparent: $('design-transparent').checked,
+    sturdy: $('design-sturdy').checked,
+  };
+  $('design-save').textContent = 'Save design';
+  previewQr();
+}
+for (const id of ['design-label', 'design-fg', 'design-bg', 'design-transparent', 'design-sturdy']) $(id).addEventListener('input', readDraft);
+for (const r of document.querySelectorAll('input[name="design-style"]')) r.addEventListener('change', readDraft);
+$('design-logo').addEventListener('change', async () => {
+  const file = $('design-logo').files[0];
+  if (!file) return;
+  try {
+    const dataUrl = await compressImage(file, 30 * 1024);
+    draftLogo = { url: PENDING_LOGO, dataUrl, img: await imageFromDataUrl(dataUrl) };
+    draft = { ...draft, logo: PENDING_LOGO };
+    previewQr();
+  } catch (err) {
+    showError($('design-error'), err);
+  }
+});
+$('design-logo-remove').addEventListener('click', () => { draft = { ...draft, logo: '' }; draftLogo = null; $('design-logo').value = ''; previewQr(); });
+$('design-reset').addEventListener('click', () => { loadDraft({}); previewQr(); });
+$('design-save').addEventListener('click', async (e) => {
+  const link = links.find((l) => l.id === qrLink.id);
+  if (!link) return;
+  await busy(e.currentTarget, async () => {
+    try {
+      let design = { ...draft };
+      if (design.logo === PENDING_LOGO && draftLogo) {
+        const bytes = Uint8Array.from(atob(draftLogo.dataUrl.split(',')[1]), (c) => c.charCodeAt(0));
+        const type = draftLogo.dataUrl.slice(5, draftLogo.dataUrl.indexOf(';'));
+        design.logo = await publishFile(bytes, type, 'logo');
+        remember(design.logo, draftLogo);
+      }
+      design = cleanDesign(design);
+      await saveUpdate(link, { design });
+      qrLink = { ...qrLink, design };
+      loadDraft(design);
+      previewQr();
+    } catch (err) {
+      showError($('design-error'), err);
+    }
+  });
+  $('design-save').textContent = 'Saved';
+  $('design-save').disabled = true;
+});
+
+$('qr-png').addEventListener('click', () => download(qrPngBlobSync(qrLink, draft), `${fileBase(qrLink)}.png`));
+$('qr-svg').addEventListener('click', () => download(new Blob([designedSvg(qrLink, 4, draft)], { type: 'image/svg+xml' }), `${fileBase(qrLink)}.svg`));
 $('qr-copy').addEventListener('click', (e) => copy(linkUrl(qrLink.id), e.currentTarget));
 $('qr-share').textContent = shareLabel;
-$('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget));
+$('qr-share').addEventListener('click', (e) => shareQr(qrLink, e.currentTarget, draft));
 
 // ---------- sign in / new key ----------
 
@@ -458,7 +564,7 @@ function renderTable() {
   const rows = sortedLinks().map((link) => {
     const view = link.pending || link;
     const thumb = h('button', { class: 'qr-mini', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
-    thumb.innerHTML = qrSvg(linkUrl(link.id), 1);
+    thumb.innerHTML = designedSvg(view, 1, view.design, { label: false });
     const scans = view.count ? (scanCounts.get(link.id) ?? '…').toLocaleString() : '—';
     return h('tr', { 'data-id': link.id },
       h('td', {}, thumb),
@@ -500,7 +606,7 @@ function render() {
     if (view.kind === 'locked' && view.destination) reveal(view.destination);
     const lockChip = view.kind === 'locked' ? h('span', { class: 'chip locked', title: 'Password protected' }, '🔒 Locked') : null;
     const thumb = h('button', { class: 'qr-thumb', type: 'button', title: 'Show QR code', 'aria-label': 'Show QR code', onclick: () => openQr(view) });
-    thumb.innerHTML = qrSvg(linkUrl(link.id), 2);
+    thumb.innerHTML = designedSvg(view, 2, view.design, { label: false });
     const dest = [];
     if (link.pending && !link.unindexed && describe(link.pending) !== describe(link)) {
       dest.push(h('p', { class: 'dest old' }, describe(link)));

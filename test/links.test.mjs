@@ -134,7 +134,7 @@ test('v3 fields round-trip, and updates using them name the current resolver', a
   assert.equal(update.find((t) => t.name === 'Time-Zone').value, 'America/New_York');
 
   const [link] = buildLinks([node('L1', created), node('u1', update)]);
-  assert.deepEqual(carry(link), { name: '', destination: 'https://a.example/', disabled: false, resolver: RESOLVER_TX, kind: '', ...v3 });
+  assert.deepEqual(carry(link), { name: '', destination: 'https://a.example/', disabled: false, resolver: RESOLVER_TX, kind: '', ...v3, design: {} });
 
   // Turning everything off keeps the resolver (harmless) and drops the tags.
   const plain = updateTags({ linkId: 'L1', ...carry(link), count: false, message: '', offAt: 0, routes: [], seq: 3 });

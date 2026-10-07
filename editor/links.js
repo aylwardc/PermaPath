@@ -2,6 +2,7 @@
 // and overlaying local not-yet-indexed writes. No DOM here.
 import { APP_NAME, GRAPHQL_ENDPOINTS, gqlAll, verifyNode } from './arweave.js';
 import { RESOLVER_TX } from './config.js';
+import { cleanDesign, isPlain } from './qr.js';
 
 export const APP_VERSION = '1';
 const BASE_TAGS = [
@@ -81,7 +82,11 @@ function v3Tags({ count, message, offAt, routes, tz }) {
 export const carry = (s) => ({
   name: s.name, destination: s.destination, disabled: s.disabled, resolver: s.resolver, kind: s.kind,
   count: !!s.count, message: s.message || '', offAt: s.offAt || 0, routes: s.routes || [], tz: s.tz || '',
+  design: s.design || {},
 });
+
+// The QR code's look (editor-only; resolvers ignore it). See qr.js.
+const designTags = (design) => (isPlain(design) ? [] : [{ name: 'Design', value: JSON.stringify(cleanDesign(design)) }]);
 
 // Full state goes in every record, so the newest record alone describes the link.
 // A link with no destination yet ("not set up", e.g. pre-printed batches) is
@@ -90,7 +95,7 @@ export const carry = (s) => ({
 // contact card (a hosted page with a vCard), 'event' for an event page (with
 // an .ics calendar file), 'locked' for a
 // password-protected locked page (editor hint only; resolvers ignore it).
-export function linkTags({ destination, name, disabled, kind, seq, ...v3 }) {
+export function linkTags({ destination, name, disabled, kind, seq, design, ...v3 }) {
   return [
     ...BASE_TAGS,
     { name: 'Type', value: 'link' },
@@ -100,11 +105,12 @@ export function linkTags({ destination, name, disabled, kind, seq, ...v3 }) {
     ...(disabled || !destination ? [{ name: 'Disabled', value: 'true' }] : []),
     ...(kind && destination ? [{ name: 'Kind', value: kind }] : []),
     ...v3Tags(v3),
+    ...designTags(design),
   ];
 }
 
 // `resolver` hands the link off to a newer resolver page; kept on every later update.
-export function updateTags({ linkId, destination, name, disabled, resolver, kind, seq, ...v3 }) {
+export function updateTags({ linkId, destination, name, disabled, resolver, kind, seq, design, ...v3 }) {
   if (usesV3(v3)) resolver = RESOLVER_TX;
   return [
     ...BASE_TAGS,
@@ -117,6 +123,7 @@ export function updateTags({ linkId, destination, name, disabled, resolver, kind
     ...(resolver ? [{ name: 'Resolver', value: resolver }] : []),
     ...(kind && destination ? [{ name: 'Kind', value: kind }] : []),
     ...v3Tags(v3),
+    ...designTags(design),
   ];
 }
 
@@ -153,7 +160,12 @@ const toState = (id, created, tags) => ({
   offAt: /^\d{1,16}$/.test(tags['Off-At'] || '') ? Number(tags['Off-At']) : 0,
   routes: parseRoutes(tags.Routes),
   tz: tags['Time-Zone'] || '',
+  design: parseDesign(tags.Design),
 });
+
+function parseDesign(text) {
+  try { return cleanDesign(JSON.parse(text || '{}')); } catch { return {}; }
+}
 
 function parseRoutes(text) {
   try {

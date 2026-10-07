@@ -1,6 +1,7 @@
 // Public history page: history.html?l=<link-id>. Read-only; no key needed.
 import { fetchLinkHistory, linkStatus, isOffNow } from './links.js';
 import { qrSvg } from './qr.js';
+import { loadLogo } from './logos.js';
 import { RESOLVER_BASE } from './config.js';
 
 const $ = (id) => document.getElementById(id);
@@ -109,7 +110,9 @@ async function show(id, { scrollTop = false } = {}) {
   }
   const status = linkStatus(link.current);
   const [chipClass, chipText] = CHIPS[status];
-  $('qr').innerHTML = qrSvg(linkUrl(id), 2);
+  const design = link.current.design || {};
+  $('qr').innerHTML = qrSvg(linkUrl(id), 2, design, { label: false });
+  if (design.logo) loadLogo(design.logo).then((logo) => { if (logo) $('qr').innerHTML = qrSvg(linkUrl(id), 2, design, { label: false, logoData: logo.dataUrl }); });
   $('name').textContent = link.current.name || 'Untitled link';
   $('chip').replaceChildren(h('span', { class: `chip ${chipClass}` }, chipText));
   $('now').replaceChildren(describe(link.current));

@@ -82,9 +82,8 @@
     <ul class="uses">
       <li><strong>AI and automation</strong>Ask an AI assistant to make or update links for you. <button type="button" class="link ai-copy" data-needs-js disabled>Copy this prompt</button> and ask for what you want.</li>
       <li><strong>Password protection</strong>Lock a link or page so only people with the password can see where it goes or what it says.</li>
-      <li><strong>Different links by device</strong>Send iPhone and iPad users to the App Store and Android users to Google Play, from one code.</li>
-      <li><strong>Different links by day and time</strong>Breakfast, lunch and dinner menus on the same code, or an event page that switches on a date.</li>
-      <li><strong>Turn off on a date</strong>End a promotion or event automatically, with your own message for anyone who scans late.</li>
+      <li><strong>Smart routing from a single QR code</strong>Send users to a different destination based on device, day or time, and automatically turn off codes after events.</li>
+      <li><strong>Custom QR codes</strong>Add a label, a frame, your colors, a rounded style, and a built-in icon or your own logo in the middle.</li>
       <li><strong>Scan counts</strong>See how many times each code is scanned, per day. Nothing about who scanned.</li>
       <li><strong>Pages and contact cards</strong>No website needed: write a simple page with a photo, or a contact card with Call, Text, Email and Save contact buttons.</li>
       <li><strong>Many codes at once</strong>Create a batch to print before you know where they’ll go, or import and export a spreadsheet.</li>
@@ -327,7 +326,8 @@
 
 <dialog id="design-dialog">
   <form method="dialog" class="dialog-body">
-    <h2>Customize QR code</h2>
+    <!-- autofocus here, not on the label field: focusing a field pops up the phone keyboard -->
+    <h2 tabindex="-1" autofocus>Customize QR code</h2>
     <p class="muted small" id="design-for"></p>
     <div id="design-preview" class="qr-big"></div>
     <fieldset class="design-group">
@@ -353,27 +353,31 @@
         <label>Background <input id="design-bg" type="color" value="#ffffff"></label>
       </div>
       <label class="check"><input type="checkbox" id="design-transparent"> Transparent background (stickers, engraving, print shops)</label>
+      <div class="design-notes muted small" id="design-color-notes"></div>
+      <p class="error" id="design-error" hidden></p>
     </fieldset>
     <fieldset class="design-group">
       <legend>Center</legend>
       <div class="icon-grid" id="design-icons" role="radiogroup" aria-label="Center icon"></div>
+      <label id="design-size-row" hidden>Size <span class="muted" id="design-size-value"></span>
+        <input id="design-size" type="range" min="16" max="32" step="1" value="22">
+      </label>
       <label>Or your own logo
         <input id="design-logo" type="file" accept="image/*">
       </label>
       <p class="small" id="design-logo-row" hidden><button type="button" class="link" id="design-logo-remove">Remove logo</button></p>
     </fieldset>
     <label class="switch"><input type="checkbox" role="switch" class="switch-input" id="design-sturdy"> Extra sturdy (for logos, outdoors, scratches)</label>
-    <div class="design-notes muted small" id="design-notes"></div>
-    <p class="error" id="design-error" hidden></p>
-    <div class="row">
-      <button type="button" id="design-reset">Plain</button>
-      <button type="button" class="primary" id="design-save">Save design</button>
-    </div>
+    <p class="muted small" id="design-size-note"></p>
+    <button type="button" id="design-reset" class="wide-btn">Reset to standard QR</button>
     <div class="row">
       <button type="button" id="design-png">Download PNG</button>
       <button type="button" id="design-svg">Download SVG</button>
     </div>
-    <button value="close" id="design-done">Done</button>
+    <div class="row">
+      <button type="button" id="design-cancel">Cancel</button>
+      <button type="button" class="primary" id="design-save">Save</button>
+    </div>
   </form>
 </dialog>
 

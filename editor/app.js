@@ -1,4 +1,4 @@
-import { qrSvg, drawQr, qrCanvasSize, cleanDesign, checkDesign, ICONS } from './qr.js';
+import { qrSvg, drawQr, qrCanvasSize, cleanDesign, checkDesign, ICONS, CENTER_DEFAULT } from './qr.js';
 import { loadLogo, loadedLogo, remember, imageFromDataUrl } from './logos.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
 import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
@@ -210,12 +210,15 @@ $('design-icons').addEventListener('click', (e) => {
 function previewDesign() {
   $('design-preview').innerHTML = designedSvg(designLink, 4, draft);
   $('design-preview').classList.toggle('checker', !!draft.transparent);
-  const { error, warnings } = checkDesign(draft);
-  $('design-notes').replaceChildren(...warnings.map((w) => h('p', {}, w)));
+  const { error, colorWarnings, sizeNote } = checkDesign(draft);
+  $('design-color-notes').replaceChildren(...colorWarnings.map((w) => h('p', {}, w)));
+  $('design-size-note').textContent = sizeNote;
   showError($('design-error'), error ? new Error(error) : null);
-  const unchanged = JSON.stringify(cleanDesign(draft)) === JSON.stringify(cleanDesign(designLink.design || {}));
-  $('design-save').disabled = !!error || unchanged;
-  if (!unchanged) $('design-save').textContent = 'Save design';
+  $('design-save').disabled = !!error;
+  const hasCenter = !!(draft.logo || draft.icon);
+  $('design-size-row').hidden = !hasCenter;
+  $('design-size').value = draft.centerSize || CENTER_DEFAULT;
+  $('design-size-value').textContent = `(${draft.centerSize || CENTER_DEFAULT}% of the code’s width)`;
   $('design-logo-row').hidden = !draft.logo;
   for (const b of $('design-icons').children) b.setAttribute('aria-checked', String(!draft.logo && (draft.icon || '') === b.dataset.icon));
   // A logo or icon always uses the extra error correction.
@@ -234,13 +237,13 @@ function loadDraft(design) {
   $('design-transparent').checked = !!draft.transparent;
   $('design-sturdy').checked = !!draft.sturdy;
   $('design-logo').value = '';
+  $('design-size').value = draft.centerSize || CENTER_DEFAULT;
 }
 
 function openDesign(link) {
   designLink = link;
   $('design-for').textContent = link.name || 'Untitled link';
   loadDraft(link.design || {});
-  $('design-save').textContent = 'Save design';
   previewDesign();
   $('design-dialog').showModal();
 }
@@ -255,11 +258,11 @@ function readDraft() {
     bg: $('design-bg').value,
     transparent: $('design-transparent').checked,
     sturdy: $('design-sturdy').checked,
+    centerSize: Number($('design-size').value),
   };
-  $('design-save').textContent = 'Save design';
   previewDesign();
 }
-for (const id of ['design-label', 'design-fg', 'design-bg', 'design-transparent', 'design-sturdy']) $(id).addEventListener('input', readDraft);
+for (const id of ['design-label', 'design-fg', 'design-bg', 'design-transparent', 'design-sturdy', 'design-size']) $(id).addEventListener('input', readDraft);
 for (const r of document.querySelectorAll('input[name="design-style"], input[name="design-frame"]')) r.addEventListener('change', readDraft);
 $('design-logo').addEventListener('change', async () => {
   const file = $('design-logo').files[0];
@@ -275,10 +278,21 @@ $('design-logo').addEventListener('change', async () => {
 });
 $('design-logo-remove').addEventListener('click', () => { draft = { ...draft, logo: '' }; draftLogo = null; $('design-logo').value = ''; previewDesign(); });
 $('design-reset').addEventListener('click', () => { loadDraft({}); previewDesign(); });
+// Save writes the design and closes, like the Edit dialog. Cancel (and Escape)
+// are blocked while a save is running, so nobody closes it thinking it's done.
+let designSaving = false;
+$('design-cancel').addEventListener('click', () => { if (!designSaving) $('design-dialog').close(); });
+$('design-dialog').addEventListener('cancel', (e) => { if (designSaving) e.preventDefault(); });
 $('design-save').addEventListener('click', async (e) => {
   const link = links.find((l) => l.id === designLink.id);
   if (!link) return;
-  let saved = false;
+  const design0 = cleanDesign(draft);
+  if (JSON.stringify(design0) === JSON.stringify(cleanDesign(designLink.design || {}))) {
+    $('design-dialog').close(); // nothing changed
+    return;
+  }
+  designSaving = true;
+  $('design-cancel').disabled = true;
   await busy(e.currentTarget, async () => {
     try {
       let design = { ...draft };
@@ -290,19 +304,14 @@ $('design-save').addEventListener('click', async (e) => {
       }
       design = cleanDesign(design);
       await saveUpdate(link, { design });
-      designLink = { ...designLink, design };
       if (qrLink?.id === designLink.id) qrLink = { ...qrLink, design };
-      loadDraft(design);
-      previewDesign();
-      saved = true;
+      $('design-dialog').close();
     } catch (err) {
       showError($('design-error'), err);
     }
   });
-  if (saved) {
-    $('design-save').textContent = 'Saved';
-    $('design-save').disabled = true;
-  }
+  designSaving = false;
+  $('design-cancel').disabled = false;
 });
 $('design-png').addEventListener('click', () => download(qrPngBlobSync(designLink, draft), `${fileBase(designLink)}.png`));
 $('design-svg').addEventListener('click', () => download(new Blob([designedSvg(designLink, 4, draft)], { type: 'image/svg+xml' }), `${fileBase(designLink)}.svg`));
@@ -562,6 +571,21 @@ function describe(state) {
   return state.kind === 'page' ? `Page · ${state.destination}` : state.destination;
 }
 
+// What kind of destination a link has: Web address, Page, Contact or Event.
+// Locked links only show it once the owner's key has opened them.
+const KIND_LABELS = { '': 'Web address', page: 'Page', contact: 'Contact', event: 'Event' };
+function kindOf(state) {
+  if (!state.destination) return '';
+  if (state.kind !== 'locked') return KIND_LABELS[state.kind] ?? '';
+  const r = revealed.get(state.destination);
+  if (!r) return '';
+  return r.startsWith('Contact card · ') ? 'Contact' : r.startsWith('Event · ') ? 'Event' : r.startsWith('Page · ') ? 'Page' : 'Web address';
+}
+const kindChip = (state) => (kindOf(state) ? h('span', { class: `chip linktype linktype-${kindOf(state).toLowerCase().replace(' ', '-')}` }, kindOf(state)) : null);
+
+// The destination without its type prefix (the type has its own column).
+const destinationText = (state) => describe(state).replace(/^(Contact card|Event|Page) · /, '');
+
 // ---------- list or table ----------
 
 const VIEW_KEY = 'permapath:view';
@@ -583,7 +607,8 @@ const statusText = (link) => statusChip(link).textContent.replace(/ \(slow\)$/, 
 const COLUMNS = [
   { key: 'name', label: 'Name', value: (l) => (l.pending || l).name.toLowerCase() || '\uffff' },
   { key: 'status', label: 'Status', value: (l) => STATUS_ORDER[statusText(l)] ?? 9 },
-  { key: 'dest', label: 'Goes to', value: (l) => describe(l.pending || l).toLowerCase() },
+  { key: 'kind', label: 'Type', value: (l) => kindOf(l.pending || l) || '\uffff' },
+  { key: 'dest', label: 'Destination', value: (l) => destinationText(l.pending || l).toLowerCase() },
   { key: 'scans', label: 'Scans', value: (l) => ((l.pending || l).count ? scanCounts.get(l.id) ?? 0 : -1), num: true },
   { key: 'created', label: 'Created', value: (l) => l.created, num: true },
   { key: 'changed', label: 'Last changed', value: (l) => (l.pending || l).seq, num: true },
@@ -618,18 +643,19 @@ function renderTable() {
       h('td', {}, thumb),
       h('td', { class: 'name' }, view.name || 'Untitled link', view.kind === 'locked' ? ' 🔒' : ''),
       h('td', {}, statusChip(link)),
-      h('td', { class: 'dest-cell' }, describe(view), extras(view, link.id, { scans: false }) ? h('div', { class: 'muted small' }, extras(view, link.id, { scans: false })) : null),
+      h('td', {}, kindChip(view)),
+      h('td', { class: 'dest-cell' }, destinationText(view), extras(view, link.id, { scans: false }) ? h('div', { class: 'muted small' }, extras(view, link.id, { scans: false })) : null),
       h('td', { class: 'num' }, scans),
       h('td', { class: 'num' }, day(link.created)),
       h('td', { class: 'num' }, day(view.seq)),
-      h('td', { class: 'actions' },
-        h('button', { type: 'button', onclick: (e) => shareQr(view, e.currentTarget) }, shareLabel), ' ',
+      h('td', { class: 'actions' }, h('div', { class: 'actions-grid' },
+        h('button', { type: 'button', onclick: (e) => shareQr(view, e.currentTarget) }, shareLabel),
         view.destination
-          ? [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'), ' ',
-            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'), ' ',
+          ? [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Edit'),
+            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'),
             h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off')]
-          : [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'), ' ',
-            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR')]),
+          : [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'),
+            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR')])),
     );
   });
   $('links-table').replaceChildren(h('table', { class: 'links-table' }, h('thead', {}, head), h('tbody', {}, rows)));
@@ -663,13 +689,13 @@ function render() {
       dest.push(h('p', { class: 'dest pending' }, `→ ${describe(link.pending)} (going live…)`));
       if (link.pending.slow) dest.push(h('p', { class: 'muted dest note' }, SLOW_NOTE));
     } else if (publishingPages.has(view.destination)) {
-      dest.push(h('p', { class: 'dest' }, describe(view)));
+      dest.push(h('p', { class: 'dest' }, destinationText(view)));
       dest.push(h('p', { class: 'muted dest note' }, `Arweave is publishing your ${view.kind === 'locked' ? 'locked link' : view.kind === 'contact' ? 'contact card' : view.kind === 'event' ? 'event page' : 'page'}. Scans will reach it within a few minutes (occasionally up to 15). The QR code is ready to print.`));
     } else if (link.unindexed) {
-      dest.push(h('p', { class: 'dest' }, describe(view)));
+      dest.push(h('p', { class: 'dest' }, destinationText(view)));
       dest.push(h('p', { class: 'muted dest note' }, link.pending?.slow ? SLOW_NOTE : 'Just created. Usually live within a minute.'));
     } else {
-      dest.push(h('p', { class: 'dest' }, describe(view)));
+      dest.push(h('p', { class: 'dest' }, destinationText(view)));
     }
     const extra = extras(view, link.id);
     if (extra) dest.push(h('p', { class: 'muted small extras' }, extra));
@@ -678,7 +704,7 @@ function render() {
     return h('li', { class: 'card link-item clickable', onclick: openFromCard, title: 'Show QR code', 'data-id': link.id },
       thumb,
       h('div', {},
-        h('h3', {}, view.name || 'Untitled link', statusChip(link), lockChip),
+        h('h3', {}, view.name || 'Untitled link', statusChip(link), kindChip(view), lockChip),
         dest,
         h('div', { class: 'row' },
           h('button', { type: 'button', onclick: (e) => shareQr(view, e.currentTarget) }, shareLabel),

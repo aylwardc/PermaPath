@@ -1,4 +1,4 @@
-// Center icons for designed QR codes: 20 outline icons from Tabler Icons
+// Center icons for designed QR codes: 21 outline icons from Tabler Icons
 // (https://tabler.io/icons), drawn on a 24×24 grid with 2-unit round strokes.
 //
 // MIT License
@@ -63,6 +63,10 @@ export const ICONS = {
   "shop": {
     "label": "Shopping",
     "d": "M6.331 8h11.339a2 2 0 0 1 1.977 2.304l-1.255 8.152a3 3 0 0 1 -2.966 2.544h-6.852a3 3 0 0 1 -2.965 -2.544l-1.255 -8.152a2 2 0 0 1 1.977 -2.304 M9 11v-5a3 3 0 0 1 6 0v5"
+  },
+  "pay": {
+    "label": "Payment",
+    "d": "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0 M14.8 9a2 2 0 0 0 -1.8 -1h-2a2 2 0 1 0 0 4h2a2 2 0 1 1 0 4h-2a2 2 0 0 1 -1.8 -1 M12 7v10"
   },
   "tag": {
     "label": "Price tag",

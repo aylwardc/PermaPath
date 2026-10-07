@@ -405,7 +405,8 @@ if (which === 'all' || which === 'editor') {
 
     const card = page.locator('.link-item', { hasText: 'Test café menu' });
     const destText = await card.locator('.dest').first().textContent();
-    const pageId = destText.match(/Page · https:\/\/arweave\.net\/([A-Za-z0-9_-]{43})/)?.[1];
+    const pageId = destText.match(/^https:\/\/arweave\.net\/([A-Za-z0-9_-]{43})$/)?.[1];
+    assert.equal(await card.locator('.chip.linktype').textContent(), 'Page');
     assert.ok(pageId, `card shows the page destination (got "${destText}")`);
     // The published page itself. Fresh uploads usually appear on turbo-gateway
     // within seconds, but some days take minutes, so try every gateway for 5 minutes.
@@ -679,6 +680,8 @@ if (which === 'all' || which === 'editor') {
     assert.deepEqual(await names(), ['Apple', 'Banana', 'Cherry']);
     await page.locator('.links-table th button', { hasText: 'Name' }).click();
     assert.deepEqual(await names(), ['Cherry', 'Banana', 'Apple']);
+    assert.deepEqual((await page.locator('.links-table th button').allTextContents()).slice(0, 4).map((t) => t.replace(/ [↑↓]$/, '')), ['Name', 'Status', 'Type', 'Destination']);
+    assert.equal(await page.locator('.links-table td .chip.linktype').first().textContent(), 'Web address');
     await page.reload();
     await page.getByRole('button', { name: 'Create a key' }).waitFor(); // signed out by reload; the view choice is kept
     assert.equal(await page.evaluate(() => localStorage.getItem('permapath:view')), '"table"');
@@ -710,7 +713,8 @@ if (which === 'all' || which === 'editor') {
     await page.getByRole('button', { name: 'Create link' }).click();
     const card = page.locator('.link-item', { hasText: 'Bike swap' });
     const dest = await card.locator('.dest').first().textContent({ timeout: 30_000 });
-    assert.match(dest, /^Event · https:\/\/arweave\.net\//);
+    assert.match(dest, /^https:\/\/arweave\.net\//);
+    assert.equal(await card.locator('.chip.linktype').textContent(), 'Event');
     const pageId = dest.match(/arweave\.net\/([A-Za-z0-9_-]{43})/)[1];
     const html = await fetchFresh(pageId, 'Add to calendar');
     assert.match(html, /<p class="when">Saturday, May 4, 2030 · 10:00 AM – 2:00 PM/);
@@ -740,6 +744,7 @@ if (which === 'all' || which === 'editor') {
         { sturdy: true, style: 'rounded' }, { transparent: true, style: 'rounded' },
         { frame: 'square' }, { frame: 'rounded', label: 'Scan for the menu' }, { frame: 'bar', fg: '#1d3557' }, { frame: 'bar', transparent: true },
         { icon: 'coffee' }, { icon: 'menu', style: 'rounded', frame: 'bar', label: 'Menu' }, { icon: 'calendar', fg: '#264653', bg: '#f1faee' },
+        { icon: 'heart', centerSize: 32 }, { logo: 'https://arweave.net/' + 'L'.repeat(43), centerSize: 32, style: 'rounded' }, { icon: 'star', centerSize: 16 },
       ];
       const out = [];
       for (const d of designs) {
@@ -784,17 +789,20 @@ if (which === 'all' || which === 'editor') {
     assert.match(await page.locator('#design-preview').innerHTML(), />Scan for the menu</);
     const [svg] = await Promise.all([page.waitForEvent('download'), page.locator('#design-svg').click()]);
     assert.match(fs.readFileSync(await svg.path(), 'utf8'), /<image href="data:image\/jpeg;base64,/, 'SVG download embeds the logo');
-    await page.getByRole('button', { name: 'Save design' }).click();
-    await page.locator('#design-save', { hasText: 'Saved' }).waitFor({ timeout: 30_000 });
-    // Switching to a built-in icon replaces the logo.
+    assert.equal(await page.locator('#design-size-row').isVisible(), true, 'a size slider with a logo');
+    await page.locator('#design-save').click();
+    await page.locator('#design-dialog').waitFor({ state: 'hidden', timeout: 30_000 }); // Save closes it
+    const card = page.locator('.link-item', { hasText: 'Designed' });
+    // Switching to a built-in icon replaces the logo; a bigger size is kept.
+    await card.getByRole('button', { name: 'Customize QR' }).click();
+    assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H2', 'the heading has focus, not a field: no phone keyboard');
     await page.locator('#design-icons').getByRole('radio', { name: 'Coffee' }).click();
     assert.doesNotMatch(await page.locator('#design-preview').innerHTML(), /<image/);
     assert.equal(await page.locator('#design-sturdy').isChecked(), true, 'icons use extra error correction');
-    await page.getByRole('button', { name: 'Save design' }).click();
-    await page.locator('#design-save', { hasText: 'Saved' }).waitFor({ timeout: 30_000 });
-    await page.locator('#design-done').click();
+    await page.locator('#design-size').fill('30');
+    await page.locator('#design-save').click();
+    await page.locator('#design-dialog').waitFor({ state: 'hidden', timeout: 30_000 });
     // The design comes back from the link's record once the update is indexed.
-    const card = page.locator('.link-item', { hasText: 'Designed' });
     for (let i = 0; i < 30; i++) {
       await page.getByRole('button', { name: 'Refresh' }).click();
       await page.waitForTimeout(1000);
@@ -807,7 +815,9 @@ if (which === 'all' || which === 'editor') {
     assert.equal(await page.locator('input[name=design-frame]:checked').getAttribute('value'), 'bar');
     assert.equal(await page.locator('#design-fg').inputValue(), '#1d3557');
     assert.equal(await page.locator('#design-icons [aria-checked=true]').getAttribute('data-icon'), 'coffee');
-    await page.locator('#design-done').click();
+    assert.equal(await page.locator('#design-size').inputValue(), '30');
+    await page.locator('#design-cancel').click();
+    await card.locator('.chip.linktype', { hasText: 'Web address' }).waitFor();
     await card.locator('h3').click(); // the QR pop-up shows the saved design
     assert.match(await page.locator('#qr-big').innerHTML(), />Scan for the menu</);
   });

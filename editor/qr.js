@@ -28,11 +28,14 @@ export function qrMatrix(text, ec = 'M') {
 //   label        short text under the code, e.g. 'Scan for the menu'
 //   logo         'https://arweave.net/<id>' image shown in the middle
 //   icon         a built-in center icon (a key of ICONS); a logo takes precedence
+//   centerSize   logo/icon width as a percent of the code, 16-32 (default 22;
+//                decoding held steady up to 34% in tests, failing from 36%)
 //   frame        'square' | 'rounded' (an outline) | 'bar' (outline plus a solid
 //                band holding the label, or "Scan me")
 //   sturdy       extra error correction (outdoors, scratches)
 
 export const LABEL_MAX = 40;
+export const CENTER_MIN = 16, CENTER_DEFAULT = 22, CENTER_MAX = 32;
 const HEX = /^#[0-9a-f]{6}$/i;
 
 export function cleanDesign(d = {}) {
@@ -45,6 +48,9 @@ export function cleanDesign(d = {}) {
   if (label) out.label = label;
   if (/^https:\/\/arweave\.net\/[A-Za-z0-9_-]{43}$/.test(d.logo || '')) out.logo = d.logo;
   else if (Object.hasOwn(ICONS, d.icon || '')) out.icon = d.icon;
+  if ((out.logo || out.icon) && Number.isFinite(+d.centerSize) && +d.centerSize !== CENTER_DEFAULT) {
+    out.centerSize = Math.min(CENTER_MAX, Math.max(CENTER_MIN, Math.round(+d.centerSize)));
+  }
   if (['square', 'rounded', 'bar'].includes(d.frame)) out.frame = d.frame;
   if (d.sturdy) out.sturdy = true;
   return out;
@@ -65,15 +71,18 @@ export function contrast(fg = '#000000', bg = '#ffffff') {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-// Problems with a design: { error } blocks saving, { warnings } are advice.
+// Problems with a design: { error } blocks saving (colors that won't scan);
+// colorWarnings are about the colors, sizeNote about print size.
 export function checkDesign(d = {}) {
   const fg = d.fg || '#000000', bg = d.bg || '#ffffff';
-  const warnings = [];
-  if (!d.transparent && contrast(fg, bg) < 3) return { error: 'The code and background colors are too close to scan reliably. Make the code darker or the background lighter.', warnings };
-  if (!d.transparent && luminance(fg) > luminance(bg)) warnings.push('Light on dark: some phones can’t read inverted codes. Dark on light is safest.');
-  if (d.transparent && luminance(fg) > 0.4) warnings.push('With a transparent background, print this light code on something dark, and test it first.');
-  if (d.style === 'rounded' || d.logo || d.icon || d.sturdy) warnings.push('Customized designs may need to be printed larger than plain codes.');
-  return { error: null, warnings };
+  const colorWarnings = [];
+  const sizeNote = d.style === 'rounded' || d.logo || d.icon || d.sturdy ? 'Customized designs may need to be printed larger than plain codes.' : '';
+  if (!d.transparent && contrast(fg, bg) < 3) {
+    return { error: 'The code and background colors are too close to scan reliably. Make the code darker or the background lighter.', colorWarnings, sizeNote, warnings: [sizeNote].filter(Boolean) };
+  }
+  if (!d.transparent && luminance(fg) > luminance(bg)) colorWarnings.push('Light on dark: some phones can’t read inverted codes. Dark on light is safest.');
+  if (d.transparent && luminance(fg) > 0.4) colorWarnings.push('With a transparent background, print this light code on something dark, and test it first.');
+  return { error: null, colorWarnings, sizeNote, warnings: [...colorWarnings, sizeNote].filter(Boolean) };
 }
 
 // ---------- geometry ----------
@@ -104,7 +113,7 @@ function layout(text, design = {}, margin = QUIET, { decor = true } = {}) {
   // Logo or icon: about 22% of the code's width (odd, so it's centred), cleared with one module of padding.
   let logo = null;
   if (d.logo || d.icon) {
-    let s = Math.round(n * 0.22);
+    let s = Math.round(n * (d.centerSize || CENTER_DEFAULT) / 100);
     if (s % 2 === 0) s += 1;
     const at = (n - s) / 2;
     logo = { at: at + margin, size: s, clear: [at - 1, at + s + 1] };

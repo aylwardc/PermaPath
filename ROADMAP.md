@@ -16,17 +16,20 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 - **"Live" means scannable:** new links stay "New" until a scan would find them.
 - **Fake Arweave for the editor tests** (LIVE=1 for real uploads); deploys pay with the deploy key's Turbo credits and report the cost.
 
+## Shipped 2026-10-07
+
+- **Slow-upload notice** when Turbo refuses an upload and it goes through up.arweave.net.
+- **Usage stats:** `node scripts/stats.mjs`, emailed weekly (Mondays 9:10) by `~/python_scripts/permapath_weekly_stats.py`.
+- **Event pages:** date, place, Add to calendar (.ics), Google Calendar, Directions.
+- **QR design:** label, colors (contrast-checked), squares / rounded / dots, center logo, extra-sturdy, transparent background; saved per link.
+
 ## Editor-only (no resolver change)
 
 - **Key handoff** (replaces "key per batch"): create a set of links with a new key and print a sheet with that key and its recovery phrase for whoever takes them over. Full control passes immediately; the creator still has the key too. About half a day. A real ownership transfer needs a new resolver (below).
-- **Event page template:** time and place with an Add to calendar (.ics) button, like contact cards. About half a day.
 - **"Message me" template:** a big button that opens a text or email with the message filled in.
-- **Slow-upload notice:** when Turbo refuses an upload and it falls back to up.arweave.net, say "this change may take a few minutes". A couple of hours.
 - **Private scan counts:** only the owner sees counts (the editor signs the request with the key; the history page stops showing them). About half a day. Not urgent: counts need the link ID and show nothing about who scanned.
-- **Owner stats for Chris:** links created, updates and active keys over time, from public Arweave records (a script or weekly email). A couple of hours.
 
 - **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
-- **QR design options:** frame text ("Scan for menu"), colors, a center logo with high error correction, and an outdoor/permanent toggle.
 - **Key per batch:** create a batch with its own key and export the key with the CSV, so pre-printed codes can be handed to someone else.
 
 ## Needs a new resolver (bundle these; only new codes get them, or old ones via the `Resolver` handoff tag)

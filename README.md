@@ -114,6 +114,16 @@ const { id, url } = await createLink(key, { destination: 'https://example.com', 
 await updateLink(key, id, { destination: 'https://example.com/v2' });
 ```
 
+### npm packages and MCP server
+
+`npm run build:npm` bundles two dependency-free packages into `dist/npm/`:
+**`permapath`** (the CLI as `npx permapath …`, and the library as `import … from 'permapath'`)
+and **`permapath-mcp`** (`mcp/server.mjs`, a local MCP server for Claude Desktop, ChatGPT
+desktop, Cursor and others; read-only tools without a key, create/update tools with
+`PERMAPATH_KEY`). Package READMEs live in `packages/`. `npm run publish:npm` publishes both
+(needs `NPM_TOKEN` in `.env`; `-- --dry` to check); bump `VERSION` in `scripts/build-npm.mjs`
+and `SERVER_INFO` in `mcp/server.mjs` first.
+
 ## Develop
 
 ```bash

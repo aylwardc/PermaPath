@@ -25,11 +25,9 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 
 ## Editor-only (no resolver change)
 
-- **Key handoff** (replaces "key per batch"): create a set of links with a new key and print a sheet with that key and its recovery phrase for whoever takes them over. Full control passes immediately; the creator still has the key too. About half a day. A real ownership transfer needs a new resolver (below).
 - **Agent access** (no resolver change needed):
   - Shipped: single-file CLI at permapath.link/cli.mjs, with `llms.txt` instructions to use a key the user provides (preferably a separate one).
-  - Next: publish as an npm package (`npx permapath …`; the name is free).
-  - Next: a *local* MCP server (`npx permapath-mcp`) for Claude Desktop, ChatGPT desktop and Cursor, with the key kept on the user's machine. Avoid a remote MCP connector that receives keys; read-only remote tools (link history) are fine.
+  - Built 2026-10-07, not yet published (needs Chris's npm account and token): `permapath` (CLI + library) and `permapath-mcp` (a *local* MCP server, key kept on the user's machine). After publishing, point `llms.txt` at `npx permapath` and the MCP setup. Avoid a remote MCP connector that receives keys; read-only remote tools are fine.
   - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
 - **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
 

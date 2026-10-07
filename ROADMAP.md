@@ -54,9 +54,10 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 
 ## Known issues
 
+- **Scan counts were reset to zero on 2026-10-07** (the Worker counts into a new Durable Object name), so totals start from real use.
+
 - **Scan counts share the Workers free plan** (100,000 requests a day for the whole account, counting the editor and the CLI relay; Durable Objects have their own free allowance). If PermaPath gets popular, move to Workers Paid ($5/month) before the limit starts failing requests.
 
-- **History page on iOS opens scrolled past the title** (Chrome on iPhone). Three small fixes didn't help (16px fields, no scroll restoration or anchoring, container padding). Next step: reproduce in the Xcode iOS Simulator instead of guessing.
 - **frostor.xyz returns a broken signature (`"<not-found>"`) for older records.** Handled: the editor, CLI and resolver v2 (`baTff…`) only trust copies whose signatures verify, per copy. Codes made with the old resolver (`G81f…`) can still show "Link not found" in the rare case frostor's broken copy is checked first. Worth reporting to frostor's operator.
 
 ## Watch list (promising, not ready to depend on)

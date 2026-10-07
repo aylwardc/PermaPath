@@ -97,7 +97,9 @@ const PUBLIC_JSON = { 'access-control-allow-origin': '*', 'cache-control': 'publ
 
 async function scans(url, request, env) {
   if (!env?.SCANS) return new Response('Scan counting is not configured', { status: 503 });
-  const counter = env.SCANS.get(env.SCANS.idFromName('all'));
+  // A new name starts from zero; reset 2026-10-07 at Chris's request (the old
+  // object, 'all', still holds the earlier test-period counts).
+  const counter = env.SCANS.get(env.SCANS.idFromName('since-2026-10-07'));
   const ask = async (op, links) => {
     const q = new URLSearchParams(links.map((l) => ['l', l]));
     return counter.fetch(`https://scans/${op}?${q}`);

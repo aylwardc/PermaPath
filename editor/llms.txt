@@ -45,11 +45,12 @@ Agents that can run shell commands (Claude Code, Codex, Cursor and similar) can 
 - Suggest the user creates a **separate key** for work done by an AI, rather than sharing their main key. Anyone with a key controls every link made with it, permanently, and keys can't be revoked. They can create one at https://permapath.link ("Create a key") or with `keygen` below. If you generate it, give it to the user to save in their password manager, because it's the only way to manage those links later.
 - Keep the key in the `PERMAPATH_KEY` environment variable or a file passed with `--key-file`. Never print it, echo it back, or write it into files you share.
 
-Requires Node.js 22 or newer. The tool only needs network access to `permapath.link`, which passes requests on to the Arweave network. It contacts Arweave services directly only if permapath.link is unreachable.
+Requires Node.js 22 or newer. The tool is the npm package `permapath` (no dependencies), so `npx permapath …` works anywhere npm does; the commands below write `node permapath.mjs`, which is the same tool downloaded as one file (use either). It only needs network access to `permapath.link`, which passes requests on to the Arweave network, and contacts Arweave services directly only if permapath.link is unreachable.
 
 ```bash
-curl -fsSL https://permapath.link/cli.mjs -o permapath.mjs
 export PERMAPATH_KEY='KEY_FROM_THE_USER'
+npx permapath help                                                        # or download it once:
+curl -fsSL https://permapath.link/cli.mjs -o permapath.mjs
 
 node permapath.mjs create https://example.com/page --name "Garden sign"   # prints link ID + QR URL
 node permapath.mjs create https://example.com/private --password "four random words here"   # password protected
@@ -80,6 +81,14 @@ Notes:
 - Pages: blank lines make paragraphs; web addresses become links. A photo must be JPEG, PNG or WebP and small enough to fit (whole page up to 95 KB, about 66 KB if password protected). Resize photos yourself first; the tool doesn't, and it says how much smaller to make them. A new page takes a few minutes to appear on Arweave; `edit-page` on a live link waits for it.
 - The user sees the same links at https://permapath.link when they sign in with that key.
 - Rules (`rules`) send some people elsewhere: first match wins, everyone else gets the main destination. They're public, so they can't be used on password-protected links. `none` removes them.
+
+## If you support MCP
+
+Assistants that support MCP servers (Claude Desktop, ChatGPT desktop, Cursor and others) can use the `permapath-mcp` server, which runs on the user's computer so their key never leaves it. Without a key it offers read-only tools (`get_link`, `get_scans`, `get_qr_svg`); with `PERMAPATH_KEY` set (a separate key for AI use) it adds `list_links`, `create_link`, `create_page` and `update_link`. Setup for the user, e.g. in Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "permapath": { "command": "npx", "args": ["-y", "permapath-mcp"], "env": { "PERMAPATH_KEY": "a separate PermaPath key" } } } }
+```
 
 ## More
 

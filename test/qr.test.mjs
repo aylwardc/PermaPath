@@ -26,13 +26,14 @@ test('QR designs: cleaned, stored on links, checked for contrast', async () => {
   const { cleanDesign, checkDesign, ecFor, qrSvg, qrMatrix } = await import('../editor/qr.js');
   const { linkTags, buildLinks, carry } = await import('../editor/links.js');
   assert.deepEqual(cleanDesign({ fg: '#000000', bg: '#FFFFFF', style: 'square', label: '  Scan   me  ', logo: 'https://evil.example/x.png', extra: 1 }), { label: 'Scan me' });
-  const design = { fg: '#1d3557', style: 'dots', label: 'Scan for the menu', logo: `https://arweave.net/${'L'.repeat(43)}`, sturdy: true };
+  const design = { fg: '#1d3557', style: 'rounded', label: 'Scan for the menu', logo: `https://arweave.net/${'L'.repeat(43)}`, sturdy: true };
   assert.equal(ecFor(design), 'H');
   const url = 'https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE?l=8NiAUY8SAUDkrHw7VCmjVc8M708VTCkmNmBbtyidhRc';
   assert.equal(qrMatrix(url, 'H').n, 57);
 
   const tags = linkTags({ destination: 'https://a.example/', seq: 1, design });
-  assert.equal(JSON.parse(tags.find((t) => t.name === 'Design').value).style, 'dots');
+  assert.equal(JSON.parse(tags.find((t) => t.name === 'Design').value).style, 'rounded');
+  assert.equal(cleanDesign({ style: 'dots' }).style, 'rounded', 'old dot designs show as rounded');
   assert.ok(!linkTags({ destination: 'https://a.example/', seq: 1, design: {} }).some((t) => t.name === 'Design'), 'plain codes add no tag');
   const [link] = buildLinks([{ id: 'L1', owner: 'o', tags: Object.fromEntries(tags.map((t) => [t.name, t.value])) }]);
   assert.deepEqual(carry(link).design, cleanDesign(design));
@@ -40,10 +41,10 @@ test('QR designs: cleaned, stored on links, checked for contrast', async () => {
   assert.match(checkDesign({ fg: '#bbbbbb' }).error, /too close/);
   assert.equal(checkDesign({ fg: '#1d3557' }).error, null);
   assert.match(checkDesign({ fg: '#ffffff', bg: '#111111' }).warnings.join(), /inverted/);
-  assert.match(checkDesign({ style: 'dots' }).warnings.join(), /1 inch/);
+  assert.match(checkDesign({ style: 'rounded' }).warnings.join(), /printed larger/);
 
   const svg = qrSvg(url, 4, design, { logoData: 'data:image/png;base64,AAAA' });
-  assert.match(svg, /fill="#1d3557"|stroke="#1d3557"/);
+  assert.match(svg, /fill="#1d3557"/);
   assert.match(svg, />Scan for the menu<\/text>/);
   assert.match(svg, /<image href="data:image\/png;base64,AAAA"/);
   assert.doesNotMatch(qrSvg(url, 2, design, { label: false }), /<text/);

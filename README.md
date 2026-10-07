@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/hLoFNctSLEFc-V2bPIF3mSb_YlibSi2eYENxiketqSo/
+  directly: https://arweave.net/WHCMcejLxN8crq3ERedaqLw1vq4jsf2E8gHevYUUlSY/
 - **Resolver:** v3, https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE
   (`RESOLVER_TX` in `editor/config.js`). Older codes use v2 (`baTff…`) or v1 (`G81f…`)
   and forward to v3 when their owner uses a v3 feature.
@@ -62,9 +62,9 @@ registry: just Arweave data items and gateway GraphQL.
   and `from`/`until` (`"HH:MM"`, in the `Time-Zone` tag's IANA zone). A rule with an
   unknown condition is skipped. The editor and CLI turn scan counting on for new links.
 - **QR design** (editor-only, resolvers ignore it): a `Design` tag with JSON `{ fg, bg,
-  transparent, style: square|rounded|dots, label, logo: https://arweave.net/<image>, sturdy }`.
-  A logo or `sturdy` uses error correction H (denser: 57 vs 45 modules). Rounded and dot
-  styles draw the finder and alignment patterns solid; every style is decode-tested.
+  transparent, style: square|rounded, label, logo: https://arweave.net/<image>, sturdy }`.
+  A logo or `sturdy` uses error correction H (denser: 57 vs 45 modules). The rounded style
+  draws the finder and alignment patterns solid; every style is decode-tested.
 - **Scan counts:** the Worker keeps a daily total per link (UTC days) in one
   SQLite-backed Durable Object: no IPs, no cookies. Public, unauthenticated, so
   approximate: `GET /api/scans?l=<id>,<id>` (totals, up to 100),

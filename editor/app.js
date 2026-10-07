@@ -164,7 +164,7 @@ function previewQr() {
   $('qr-big').innerHTML = designedSvg(qrLink, 4, draft);
   $('qr-big').classList.toggle('checker', !!draft.transparent);
   const { error, warnings } = checkDesign(draft);
-  $('design-notes').replaceChildren(...warnings.map((w) => h('li', {}, w)));
+  $('design-notes').replaceChildren(...warnings.map((w) => h('p', {}, w)));
   showError($('design-error'), error ? new Error(error) : null);
   $('design-save').disabled = !!error || JSON.stringify(cleanDesign(draft)) === JSON.stringify(cleanDesign(qrLink.design || {}));
   $('design-logo-row').hidden = !draft.logo;

@@ -723,7 +723,7 @@ if (which === 'all' || which === 'editor') {
     assert.equal(await page.locator('#edit-event-start').inputValue(), '2030-05-04T10:00');
     assert.equal(await page.locator('input[name=edit-kind]:checked').getAttribute('value'), 'event');
   });
-  await check('QR designs all scan (every style, colors, label, logo, sturdy, small sizes)', async (page) => {
+  await check('QR designs all scan (both styles, colors, label, logo, sturdy, small sizes)', async (page) => {
     await page.goto(base);
     await page.addScriptTag({ path: path.join(root, 'node_modules/jsqr/dist/jsQR.js') });
     const url = 'https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE?l=8NiAUY8SAUDkrHw7VCmjVc8M708VTCkmNmBbtyidhRc';
@@ -735,9 +735,9 @@ if (which === 'all' || which === 'editor') {
       const lc = logo.getContext('2d');
       lc.fillStyle = '#e63946'; lc.fillRect(0, 0, 120, 120); lc.fillStyle = '#fff'; lc.font = 'bold 90px sans-serif'; lc.fillText('P', 30, 95);
       const designs = [
-        {}, { style: 'rounded' }, { style: 'dots' }, { fg: '#1d3557', bg: '#f1faee' }, { label: 'Scan for the menu' },
-        { logo: 'https://arweave.net/' + 'L'.repeat(43) }, { style: 'dots', logo: 'https://arweave.net/' + 'L'.repeat(43), fg: '#264653' },
-        { sturdy: true, style: 'rounded' }, { transparent: true, style: 'dots' },
+        {}, { style: 'rounded' }, { fg: '#1d3557', bg: '#f1faee' }, { label: 'Scan for the menu' },
+        { logo: 'https://arweave.net/' + 'L'.repeat(43) }, { style: 'rounded', logo: 'https://arweave.net/' + 'L'.repeat(43), fg: '#264653' },
+        { sturdy: true, style: 'rounded' }, { transparent: true, style: 'rounded' },
       ];
       const out = [];
       for (const d of designs) {
@@ -770,7 +770,7 @@ if (which === 'all' || which === 'editor') {
     await openCreated(page, 'Designed');
     await page.locator('#design-box summary').click();
     await page.locator('#design-label').fill('Scan for the menu');
-    await page.locator('#design-box').getByText('Dots').click();
+    await page.locator('#design-box').getByText('Rounded').click();
     await page.locator('#design-fg').fill('#cccccc');
     await page.locator('#design-error').getByText(/too close/).waitFor();
     assert.equal(await page.locator('#design-save').isDisabled(), true, 'faint colors cannot be saved');
@@ -793,7 +793,7 @@ if (which === 'all' || which === 'editor') {
     await card.locator('h3').click();
     await page.locator('#qr-dialog').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#design-label').inputValue(), 'Scan for the menu');
-    assert.equal(await page.locator('input[name=design-style]:checked').getAttribute('value'), 'dots');
+    assert.equal(await page.locator('input[name=design-style]:checked').getAttribute('value'), 'rounded');
     assert.equal(await page.locator('#design-fg').inputValue(), '#1d3557');
     await page.locator('#qr-big image').waitFor({ timeout: 30_000 }); // logo loaded from Arweave (fake)
   });

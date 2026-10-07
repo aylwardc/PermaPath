@@ -14,7 +14,7 @@ import {
   loadKey, createLink, updateLink, listLinks, getLink, getScans, createPage, linkUrl, linkStatus, linkQrSvgDesigned, uploadStatus, suggestFeature,
 } from '../lib/permapath.js';
 
-export const SERVER_INFO = { name: 'permapath', version: '0.1.0' }; // keep in step with VERSION in scripts/build-npm.mjs
+export const SERVER_INFO = { name: 'permapath', version: '0.1.1' }; // keep in step with VERSION in scripts/build-npm.mjs
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
 const LINK_ID = { type: 'string', description: 'The 43-character link ID (the part after ?l= in a PermaPath QR link).', pattern: '^[A-Za-z0-9_-]{43}$' };

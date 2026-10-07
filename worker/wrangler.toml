@@ -21,3 +21,13 @@ class_name = "ScanCounter"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ScanCounter"]
+
+# Feature suggestions (see SuggestionBox): private, fetched by goodspeed with
+# the SUGGEST_ADMIN_KEY secret (wrangler secret put SUGGEST_ADMIN_KEY).
+[[durable_objects.bindings]]
+name = "SUGGESTIONS"
+class_name = "SuggestionBox"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SuggestionBox"]

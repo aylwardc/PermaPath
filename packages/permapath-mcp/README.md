@@ -36,6 +36,7 @@ controls its links, permanently. `PERMAPATH_KEY_FILE` (a path) works too.
 | `create_link` | yes | A new link to a web address (optionally password protected) |
 | `create_page` | yes | A new link to a simple page you write |
 | `update_link` | yes | Repoint, rename, turn on/off, set an end date and message, scan counting |
+| `suggest_feature` | no | Send a feature suggestion to the PermaPath team (asks you first) |
 
 Everything written is permanent and public, except what a password protects. Source:
 [github.com/aylwardc/PermaPath](https://github.com/aylwardc/PermaPath). MIT license.

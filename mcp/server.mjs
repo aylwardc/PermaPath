@@ -11,7 +11,7 @@
 // Protocol: JSON-RPC 2.0 messages, one per line on stdin/stdout (MCP stdio).
 import fs from 'node:fs';
 import {
-  loadKey, createLink, updateLink, listLinks, getLink, getScans, createPage, linkUrl, linkStatus, linkQrSvgDesigned, uploadStatus,
+  loadKey, createLink, updateLink, listLinks, getLink, getScans, createPage, linkUrl, linkStatus, linkQrSvgDesigned, uploadStatus, suggestFeature,
 } from '../lib/permapath.js';
 
 export const SERVER_INFO = { name: 'permapath', version: '0.1.0' }; // keep in step with VERSION in scripts/build-npm.mjs
@@ -51,6 +51,21 @@ export const TOOLS = {
     description: 'The QR code for a link as SVG markup (print-ready, with the link\'s saved design). Save it to a .svg file to print or share.',
     inputSchema: { type: 'object', properties: { link_id: LINK_ID }, required: ['link_id'] },
     async run({ link_id }) { return { svg: await linkQrSvgDesigned(link_id) }; },
+  },
+  suggest_feature: {
+    description: 'Send a feature suggestion to the PermaPath team when the user wants something PermaPath can\'t do. Ask the user first and show them the text you\'ll send; include their email only if they offer it (to be told when it\'s done). Private: never published.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'What the user would like PermaPath to do, in plain words.' },
+        email: { type: 'string', description: 'Optional, only if the user wants to be told when it\'s done.' },
+      },
+      required: ['text'],
+    },
+    async run({ text, email = '' }) {
+      await suggestFeature({ text, email, source: 'mcp' });
+      return { sent: true, note: 'Thanks the user: the PermaPath team reads every suggestion.' };
+    },
   },
   list_links: {
     description: 'All links owned by the configured key, newest first.',

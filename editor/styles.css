@@ -306,3 +306,5 @@ a.header-btn { border: 1px solid var(--line); background: var(--card); color: va
 .qr-big.checker { background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50% / 16px 16px; }
 
 .uses button.link { font: inherit; vertical-align: baseline; }
+
+.app-footer { margin-top: 2.5rem; }

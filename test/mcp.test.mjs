@@ -15,7 +15,7 @@ test('without a key: read-only tools only', async () => {
   assert.deepEqual(init.result.capabilities, { tools: {} });
   assert.equal(await server.handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   const list = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['get_link', 'get_scans', 'get_qr_svg']);
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['get_link', 'get_scans', 'get_qr_svg', 'suggest_feature']);
   const r = await call(server, 'create_link', { destination: 'https://example.com/' });
   assert.equal(r.isError, true);
   assert.match(r.content[0].text, /needs a PermaPath key/);
@@ -55,6 +55,9 @@ test('with a key: create, look up, change, list, QR', async () => {
     assert.equal(r.structuredContent.total, 0);
     r = await call(server, 'create_page', { title: 'If you found this bike', text: 'Call 555-0100.' });
     assert.ok(!r.isError && r.structuredContent.pageUrl, r.content[0].text);
+    r = await call(server, 'suggest_feature', { text: 'Let me pick the QR error correction level' });
+    assert.ok(!r.isError, r.content[0].text);
+    assert.deepEqual(fake.suggestions.at(-1), { text: 'Let me pick the QR error correction level', email: '', source: 'mcp' });
     r = await call(server, 'get_link', { link_id: 'x' });
     assert.equal(r.isError, true);
     assert.equal(fake.passedThrough.size, 0, [...fake.passedThrough].join());

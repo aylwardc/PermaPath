@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import {
   generateKey, loadKey, recoveryPhrase, createLink, createBatch, listLinks, getLink, updateLink, linkUrl, linkQrSvg, linkStatus,
-  lockLink, unlockLink, revealLink, createPage, editPage, readPage, getScans, uploadStatus, linkQrSvgDesigned,
+  lockLink, unlockLink, revealLink, createPage, editPage, readPage, getScans, uploadStatus, linkQrSvgDesigned, suggestFeature,
 } from '../lib/permapath.js';
 
 const HELP = `PermaPath: QR codes you never have to reprint.
@@ -29,6 +29,8 @@ Usage: permapath <command> [options]
   off <link-id> | on <link-id>   Turn a link off or back on
   lock <link-id> --password P    Password-protect a link, or change its password
   unlock <link-id>               Remove password protection
+  suggest <text> [--email E]     Send a feature suggestion to the PermaPath team
+                                 (private; --email to hear when it's done)
   qr <link-id> [--plain]         Print the link's QR code as SVG, with its saved
                                  design (--plain: black on white)
   scans <link-id>                Scan count: total and per day (UTC)
@@ -228,6 +230,10 @@ async function main() {
       if (!Array.isArray(routes)) throw new Error('Rules must be a JSON list.');
       const r = await updateLink(await key(opts), need(rest[0], 'link ID'), { routes, ...(opts.tz ? { tz: opts.tz } : {}) });
       return out(r.routes.length ? `${rest[0]} now has ${r.routes.length} rule${r.routes.length === 1 ? '' : 's'}${r.tz ? ` (times in ${r.tz})` : ''}` : `Removed the rules from ${rest[0]}`, r);
+    }
+    case 'suggest': {
+      const r = await suggestFeature({ text: need(rest.join(' '), 'suggestion text'), email: opts.email || '', source: 'cli' });
+      return out('Thanks! Your suggestion was sent to the PermaPath team.', r);
     }
     case 'qr':
       return console.log(opts.plain ? linkQrSvg(need(rest[0], 'link ID')) : await linkQrSvgDesigned(need(rest[0], 'link ID')));

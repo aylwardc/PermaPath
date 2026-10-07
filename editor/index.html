@@ -325,6 +325,58 @@
   </main>
 </section>
 
+<dialog id="design-dialog">
+  <form method="dialog" class="dialog-body">
+    <h2>Customize QR code</h2>
+    <p class="muted small" id="design-for"></p>
+    <div id="design-preview" class="qr-big"></div>
+    <fieldset class="design-group">
+      <legend>Label and frame</legend>
+      <label>Label under the code <span class="muted">(optional)</span>
+        <input id="design-label" maxlength="40" placeholder="Scan for the menu">
+      </label>
+      <div class="seg" role="radiogroup" aria-label="Frame">
+        <label><input type="radio" name="design-frame" value="" checked><span>None</span></label>
+        <label><input type="radio" name="design-frame" value="square"><span>Square</span></label>
+        <label><input type="radio" name="design-frame" value="rounded"><span>Rounded</span></label>
+        <label><input type="radio" name="design-frame" value="bar"><span>Label bar</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="design-group">
+      <legend>Style and colors</legend>
+      <div class="seg" role="radiogroup" aria-label="Style">
+        <label><input type="radio" name="design-style" value="square" checked><span>Squares</span></label>
+        <label><input type="radio" name="design-style" value="rounded"><span>Rounded</span></label>
+      </div>
+      <div class="pair colors">
+        <label>Code color <input id="design-fg" type="color" value="#000000"></label>
+        <label>Background <input id="design-bg" type="color" value="#ffffff"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="design-transparent"> Transparent background (stickers, engraving, print shops)</label>
+    </fieldset>
+    <fieldset class="design-group">
+      <legend>Center</legend>
+      <div class="icon-grid" id="design-icons" role="radiogroup" aria-label="Center icon"></div>
+      <label>Or your own logo
+        <input id="design-logo" type="file" accept="image/*">
+      </label>
+      <p class="small" id="design-logo-row" hidden><button type="button" class="link" id="design-logo-remove">Remove logo</button></p>
+    </fieldset>
+    <label class="switch"><input type="checkbox" role="switch" class="switch-input" id="design-sturdy"> Extra sturdy (for logos, outdoors, scratches)</label>
+    <div class="design-notes muted small" id="design-notes"></div>
+    <p class="error" id="design-error" hidden></p>
+    <div class="row">
+      <button type="button" id="design-reset">Plain</button>
+      <button type="button" class="primary" id="design-save">Save design</button>
+    </div>
+    <div class="row">
+      <button type="button" id="design-png">Download PNG</button>
+      <button type="button" id="design-svg">Download SVG</button>
+    </div>
+    <button value="close" id="design-done">Done</button>
+  </form>
+</dialog>
+
 <dialog id="qr-dialog">
   <form method="dialog" class="dialog-body">
     <h2 id="qr-title"></h2>
@@ -339,35 +391,7 @@
       <button type="button" id="qr-png">Download PNG</button>
       <button type="button" id="qr-svg">Download SVG</button>
     </div>
-    <details class="design-box" id="design-box">
-      <summary>Customize design</summary>
-      <label>Label under the code <span class="muted">(optional)</span>
-        <input id="design-label" maxlength="40" placeholder="Scan for the menu">
-      </label>
-      <fieldset class="kind">
-        <legend>Style</legend>
-        <div class="seg">
-          <label><input type="radio" name="design-style" value="square" checked><span>Squares</span></label>
-          <label><input type="radio" name="design-style" value="rounded"><span>Rounded</span></label>
-        </div>
-      </fieldset>
-      <div class="pair colors">
-        <label>Code color <input id="design-fg" type="color" value="#000000"></label>
-        <label>Background <input id="design-bg" type="color" value="#ffffff"></label>
-      </div>
-      <label class="check"><input type="checkbox" id="design-transparent"> Transparent background (stickers, engraving, print shops)</label>
-      <label>Logo in the middle <span class="muted">(optional)</span>
-        <input id="design-logo" type="file" accept="image/*">
-      </label>
-      <p class="small" id="design-logo-row" hidden><button type="button" class="link" id="design-logo-remove">Remove logo</button></p>
-      <label class="switch"><input type="checkbox" role="switch" class="switch-input" id="design-sturdy"> Extra sturdy (for logos, outdoors, scratches)</label>
-      <div class="design-notes muted small" id="design-notes"></div>
-      <p class="error" id="design-error" hidden></p>
-      <div class="row">
-        <button type="button" id="design-reset">Plain</button>
-        <button type="button" class="primary" id="design-save">Save design</button>
-      </div>
-    </details>
+    <button type="button" id="qr-customize">Customize QR code</button>
     <button class="primary" value="close">Done</button>
   </form>
 </dialog>

@@ -32,6 +32,47 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 - **Payment links:** a "Payment" destination type that builds a Venmo, Cash App or PayPal link from a username and an optional amount and note (e.g. `https://venmo.com/USER?txn=pay&amount=10&note=…`). Works today by pasting such a link as a web address; this would only make it easier. Zelle has no public links.
 - **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
 
+## Planned: file links, the first paid feature (notes, not built)
+
+Discussed 2026-10-08. A fifth link type, "A file": the user's key signs and owns the
+upload; PermaPath's sponsor key pays Turbo for files over the free size.
+
+**Decided**
+- Payments: Stripe Checkout. $5 minimum deposit. Balance shown in dollars.
+- No refunds: unused balance is forfeited.
+- Sponsorship via Turbo credit sharing (proven 2026-10-07, `spike/FINDINGS.md`): a
+  dedicated sponsor key in the Worker approves just one file's cost (plus a small buffer,
+  ~15 min expiry) when the user presses Upload; the browser uploads with `x-paid-by`;
+  the Worker deducts the dollar price and revokes what's left. Never the deploy key.
+- The balance stays in exact dollars; only each upload's price follows Turbo's rate,
+  quoted before upload ("This file costs $0.27").
+- Small files (under ~100 KB) stay free through the user's own Turbo allowance, so
+  people can try file links with no balance. No sponsored freebies (keys are free, so
+  they'd be farmed).
+- Rough costs at ~$90/GB: 300 KB PDF ~3¢, 3 MB ~27¢, 20 MB ~$1.80.
+
+**Still to decide**
+- Where dollar balances live: a small private store in the Worker (recommended; exact,
+  instant, private; needed for per-upload approvals) vs. locking a rate per deposit and
+  keeping the full amount approved in Turbo (no store, but our credits sit reserved).
+- Markup over Turbo's cost. Stripe takes 2.9% + 30¢ (about 9% of a $5 deposit).
+- Rounding and a minimum charge per file (e.g. round up to the cent, at least 1¢).
+- Size limit (start ~50 MB) and allowed file types (PDF, images, audio, video?).
+- Float: how much Turbo credit the sponsor key holds, who tops it up, low-balance alert.
+- Terms of use and content policy (permanent, public, paid by us), and who handles reports.
+- Business setup: whose Stripe account (personal or a company), sales tax (Stripe Tax),
+  showing "no refunds" at checkout; chargebacks can still happen. Rules for keeping
+  unused prepaid balances vary by place; worth a quick check.
+- Do balances ever expire, or just never refund?
+- Lost key = lost balance (the balance belongs to the key). Say so at checkout.
+- Payment methods: cards and Apple/Google Pay; also USDC through Stripe (~1.5% fee)?
+- Password-protected (encrypted) files in the first release, or later?
+- Paid uploads from the CLI and MCP, or editor only at first?
+
+**Build order (~5 days):** file link type with free small files; Stripe Add funds and
+dollar balance; paid uploads (quote, reserve, upload, deduct, release); terms, report
+link, limits, low-float alert.
+
 ## Needs a new resolver (bundle these; only new codes get them, or old ones via the `Resolver` handoff tag)
 
 - **Backup key and co-editors** (set aside 2026-10-05: too much complexity for the benefit; the recovery phrase covers lost keys): a link names a recovery key or extra keys allowed to update it. It would make agent access safer: give an AI agent its own key with edit rights instead of the main key.

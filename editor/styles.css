@@ -332,3 +332,7 @@ a.header-btn { border: 1px solid var(--line); background: var(--card); color: va
 /* Table actions: two per row instead of one wide row. */
 .links-table td.actions { white-space: normal; }
 .links-table .actions-grid { display: grid; grid-template-columns: repeat(2, max-content); gap: .3rem; }
+
+/* Draft links prepared by AI assistants */
+.draft-note { margin: 0 0 1rem; padding: .7rem .9rem; border-radius: 8px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--card)); font-size: .92rem; }
+.draft-note button.link { margin-left: .25rem; }

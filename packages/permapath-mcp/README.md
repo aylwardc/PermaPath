@@ -32,6 +32,7 @@ controls its links, permanently. `PERMAPATH_KEY_FILE` (a path) works too.
 | `get_link` | no | Where a link points, its status and full history |
 | `get_scans` | no | Scan counts, total and per day |
 | `get_qr_svg` | no | The link's QR code as SVG, with its saved design |
+| `draft_link` | no | A pre-filled link the user opens to check and save with their own key |
 | `list_links` | yes | The key's links |
 | `create_link` | yes | A new link to a web address (optionally password protected) |
 | `create_page` | yes | A new link to a simple page you write |

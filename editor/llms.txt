@@ -4,7 +4,33 @@
 
 ## How an AI assistant can help
 
-You can't create links directly: every link is signed with the user's private key, and that key should stay in their browser. Instead, prepare a CSV that the user imports into PermaPath. The user then signs and creates the links in one step.
+You can't create links directly: every link is signed with the user's private key, and that key should stay in their browser. Instead, give the user a **draft link** (for one link or one change) or a **CSV** to import (for many). Either way the user checks it and signs it themselves, so they own the link from the start.
+
+### Draft links
+
+A draft link opens PermaPath with a new link, or a change to one of the user's links, already filled in. Nothing is saved until the user signs in and taps **Create link** (or **Save**). Build the URL yourself (URL-encode every value):
+
+- New link: `https://permapath.link/?new&dest=https://example.com/menu&name=Menu`
+- Change a link: `https://permapath.link/?edit=LINK_ID&dest=https://example.com/menu-v2` (LINK_ID is the 43 characters after `?l=` in its QR link; only fields you give change)
+
+Parameters (all optional):
+
+- `type`: `url` (default), `page`, `contact` or `event`.
+- `dest`: web address (type `url`). `name`: link name (public).
+- `title`, `text`: a simple page (type `page`). Blank lines in `text` make paragraphs.
+- `contact_name`, `role`, `phone`, `email`, `website`, `address`, and `text` as a note: a contact card with a "Save contact" button (type `contact`).
+- `event_name`, `start`, `end` (local time, `2026-11-01T19:00`), `location`, and `text` as details: an event page with "Add to calendar" (type `event`).
+- `count`: `1` or `0`, count scans (new links count by default).
+- `off_at`: date and time to turn off automatically (`2026-12-31T23:59`); `message`: shown while it's off.
+- `ios`, `android`: send iPhone/iPad or Android users somewhere else (e.g. app store links).
+- `rules`: JSON list of routing rules, first match wins: `[{"to":"https://example.com/brunch","days":"06","until":"12:00"}]`. Conditions: `os` (`ios`/`android`), `after`/`before` (Unix ms), `days` (`"12345"`, 0 = Sunday), `from`/`until` (`"HH:MM"`, in the user's time zone).
+- `qr`: JSON QR design: `{"label":"Scan for the menu","frame":"bar","icon":"menu","fg":"#1d4ed8","style":"rounded"}`. Frames: `square`, `rounded`, `bar`. Icons: `menu`, `coffee`, `phone`, `email`, `calendar`, `pin`, `info`, `star`, `heart`, `shop`, `pay`, `tag`, `home`, `pet`, `music`, `play`, `doc`, `gift`, `link`, `smile`, `bike`.
+
+Example (a café menu with a labelled QR code and the app for phone users):
+
+`https://permapath.link/?new&name=Menu&dest=https%3A%2F%2Fexample.com%2Fmenu&ios=https%3A%2F%2Fapps.apple.com%2Fapp%2Fexample&qr=%7B%22label%22%3A%22Scan%20for%20the%20menu%22%2C%22frame%22%3A%22bar%22%2C%22icon%22%3A%22menu%22%7D`
+
+Tell the user to open it, sign in (or create a key), check the form, and tap **Create link**. After that the link appears under "Your links" with its QR code to download or print.
 
 ### CSV format
 
@@ -80,11 +106,12 @@ Notes:
 - `show LINK_ID` with the owner's key also prints what a locked link unlocks to, and a page's title and text.
 - Pages: blank lines make paragraphs; web addresses become links. A photo must be JPEG, PNG or WebP and small enough to fit (whole page up to 95 KB, about 66 KB if password protected). Resize photos yourself first; the tool doesn't, and it says how much smaller to make them. A new page takes a few minutes to appear on Arweave; `edit-page` on a live link waits for it.
 - The user sees the same links at https://permapath.link when they sign in with that key.
+- If your platform has a credential store (secrets, vault, keychain), keep the key there and pass it in `PERMAPATH_KEY`. Never print it, paste it into chat, or write it into files, logs or links. Don't ask for the user's main key in chat; offer a draft link instead.
 - Rules (`rules`) send some people elsewhere: first match wins, everyone else gets the main destination. They're public, so they can't be used on password-protected links. `none` removes them.
 
 ## If you support MCP
 
-Assistants that support MCP servers (Claude Desktop, ChatGPT desktop, Cursor and others) can use the `permapath-mcp` server, which runs on the user's computer so their key never leaves it. Without a key it offers read-only tools (`get_link`, `get_scans`, `get_qr_svg`); with `PERMAPATH_KEY` set (a separate key for AI use) it adds `list_links`, `create_link`, `create_page` and `update_link`. Setup for the user, e.g. in Claude Desktop's `claude_desktop_config.json`:
+Assistants that support MCP servers (Claude Desktop, ChatGPT desktop, Cursor and others) can use the `permapath-mcp` server, which runs on the user's computer so their key never leaves it. Without a key it offers read-only tools (`get_link`, `get_scans`, `get_qr_svg`) and `draft_link`, which returns a draft link for the user to approve; with `PERMAPATH_KEY` set (a separate key for AI use) it adds `list_links`, `create_link`, `create_page` and `update_link`. Setup for the user, e.g. in Claude Desktop's `claude_desktop_config.json`:
 
 ```json
 { "mcpServers": { "permapath": { "command": "npx", "args": ["-y", "permapath-mcp"], "env": { "PERMAPATH_KEY": "a separate PermaPath key" } } } }

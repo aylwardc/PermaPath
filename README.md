@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/DjA9Xys3rx1KYMuWdCJE95vY0t82WYcwtoYJueHcvJQ/
+  directly: https://arweave.net/zM_B3B33lkEHbn1RPC48ZW-qPTYmestgusTsjNlum20/
 - **Resolver:** v3, https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE
   (`RESOLVER_TX` in `editor/config.js`). Older codes use v2 (`baTff…`) or v1 (`G81f…`)
   and forward to v3 when their owner uses a v3 feature.
@@ -65,6 +65,10 @@ registry: just Arweave data items and gateway GraphQL.
   transparent, style: square|rounded, label, frame: square|rounded|bar, icon: <built-in name>, logo: https://arweave.net/<image>, sturdy }`.
   A logo, icon or `sturdy` uses error correction H (denser: 57 vs 45 modules). The rounded style
   draws the finder and alignment patterns solid; every style is decode-tested.
+- **Draft links:** `permapath.link/?new&dest=…&name=…` (or `?edit=<id>&…`) opens the editor with
+  a new link or a change filled in, including type, options, routing and QR design (`editor/drafts.js`).
+  The draft waits in `sessionStorage` through sign-in; nothing is saved until the user taps Create or
+  Save. Made by AI assistants per `llms.txt`, `draftLinkUrl()` in the library, or the MCP `draft_link` tool.
 - **Center icons:** 21 outline icons from Tabler Icons (MIT), vendored in `editor/vendor/icons.mjs`.
 - **Feature suggestions:** `suggest.html` (also pre-filled by AI assistants via
   `?source=ai&text=…`), `permapath suggest` and the MCP `suggest_feature` tool post to
@@ -90,7 +94,7 @@ registry: just Arweave data items and gateway GraphQL.
 | Path | What |
 |---|---|
 | `resolver/index.html` | The page every QR code points at. Single file, no dependencies. |
-| `editor/` | Static site for creating/editing links, plus `history.html?l=<id>` (public, verified change history of any link) and `llms.txt` (instructions for AI assistants: draft a CSV for the user's **Import CSV**). `arweave.js` = keys, ANS-104, upload, GraphQL; `links.js` = protocol; `app.js` = UI. |
+| `editor/` | Static site for creating/editing links, plus `history.html?l=<id>` (public, verified change history of any link) and `llms.txt` (instructions for AI assistants: draft links and CSVs for the user to approve). `drafts.js` = draft links (`?new&dest=…`, `?edit=<id>&…`) that open the form filled in. `arweave.js` = keys, ANS-104, upload, GraphQL; `links.js` = protocol; `app.js` = UI. |
 | `scripts/deploy.mjs` | Uploads the resolver or editor to Arweave (signs with `.data/deploy-key`, gitignored). |
 | `worker/` | Cloudflare Worker for permapath.link: serves the current editor from Arweave under one stable origin, so password managers keep autofilling keys across editor deploys; relays `/api` for the CLI; keeps scan counts. |
 | `test/` | Unit tests (`npm test`) and live browser tests (`node test/browser.mjs`). |

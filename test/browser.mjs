@@ -829,6 +829,45 @@ if (which === 'all' || which === 'editor') {
     await page.getByText('we’ll email you if it gets built').waitFor();
     if (fake) assert.deepEqual(fake.suggestions.at(-1), { text: 'Add NFC tags that work like the QR codes', email: 'me@example.com', source: 'ai', website: '' });
   });
+  await check('draft links: an assistant prepares a link and an edit; nothing saves until the user does', async (page) => {
+    const qr = encodeURIComponent(JSON.stringify({ label: 'Scan for the menu', frame: 'bar', icon: 'menu' }));
+    await page.goto(`${base}/?new&dest=${encodeURIComponent('example.com/?pp=draft')}&name=Drafted&ios=${encodeURIComponent('https://apps.apple.com/app/x')}&qr=${qr}`);
+    await page.locator('#signin-draft').waitFor();
+    assert.equal(new URL(page.url()).search, '', 'the address is cleaned so a reload does not reapply it');
+    await page.getByRole('button', { name: 'Create a key' }).click();
+    const keyText = await page.locator('#newkey-key').inputValue();
+    await page.getByLabel('I’ve saved this key somewhere safe').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.locator('#create-draft').waitFor();
+    assert.equal(await page.locator('#create-dest').inputValue(), 'example.com/?pp=draft');
+    assert.equal(await page.locator('#create-name').inputValue(), 'Drafted');
+    assert.equal(await page.locator('#create-options-ios').inputValue(), 'https://apps.apple.com/app/x');
+    assert.match(await page.locator('#create-draft').textContent(), /label bar frame, menu icon/);
+    assert.equal(await page.locator('.link-item').count(), 0, 'nothing created yet');
+    await page.getByRole('button', { name: 'Create link' }).click();
+    const card = page.locator('.link-item', { hasText: 'Drafted' });
+    await card.waitFor();
+    assert.equal(await page.locator('#create-draft').isHidden(), true);
+    const id = await card.getAttribute('data-id');
+    let link;
+    for (let i = 0; i < 20 && !link; i++) { link = await fetchLinkHistory(id).catch(() => null); if (!link) await page.waitForTimeout(500); }
+    assert.equal(link.current.destination, 'https://example.com/?pp=draft');
+    assert.deepEqual(link.current.design, { label: 'Scan for the menu', icon: 'menu', frame: 'bar' });
+    assert.deepEqual(link.current.routes, [{ to: 'https://apps.apple.com/app/x', os: 'ios' }]);
+
+    // An edit draft: the user signs in again, reviews the change in the Edit pop-up, and saves.
+    await page.goto(`${base}/?edit=${id}&dest=${encodeURIComponent('https://example.com/?pp=draft-v2')}`);
+    await page.locator('#login-key').fill(keyText);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.locator('#edit-dialog').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('#edit-draft', { hasText: 'Suggested by an AI assistant' }).waitFor();
+    assert.equal(await page.locator('#edit-dest').inputValue(), 'https://example.com/?pp=draft-v2');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await page.locator('#edit-dialog').waitFor({ state: 'hidden', timeout: 30_000 });
+    for (let i = 0; i < 20; i++) { link = await fetchLinkHistory(id); if (link.history.length === 2) break; await page.waitForTimeout(500); }
+    assert.equal(link.current.destination, 'https://example.com/?pp=draft-v2');
+    assert.equal(link.current.design.frame, 'bar', 'the saved design is kept');
+  });
   await check('editor: rejects a bad key', async (page) => {
     await page.goto(base);
     await page.locator('#login-key').fill('definitely not a key');

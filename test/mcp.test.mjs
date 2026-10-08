@@ -15,7 +15,15 @@ test('without a key: read-only tools only', async () => {
   assert.deepEqual(init.result.capabilities, { tools: {} });
   assert.equal(await server.handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), null);
   const list = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.deepEqual(list.result.tools.map((t) => t.name), ['get_link', 'get_scans', 'get_qr_svg', 'suggest_feature']);
+  assert.deepEqual(list.result.tools.map((t) => t.name), ['get_link', 'get_scans', 'get_qr_svg', 'draft_link', 'suggest_feature']);
+  const d = await call(server, 'draft_link', { destination: 'https://example.com/menu', name: 'Menu', qr: { label: 'Menu' } });
+  const url = new URL(d.structuredContent.url);
+  assert.equal(url.origin, 'https://permapath.link');
+  assert.ok(url.searchParams.has('new'));
+  assert.equal(url.searchParams.get('dest'), 'https://example.com/menu');
+  assert.deepEqual(JSON.parse(url.searchParams.get('qr')), { label: 'Menu' });
+  const e = await call(server, 'draft_link', { link_id: 'a'.repeat(43), destination: 'https://example.com/v2' });
+  assert.equal(new URL(e.structuredContent.url).searchParams.get('edit'), 'a'.repeat(43));
   const r = await call(server, 'create_link', { destination: 'https://example.com/' });
   assert.equal(r.isError, true);
   assert.match(r.content[0].text, /needs a PermaPath key/);

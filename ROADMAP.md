@@ -32,6 +32,9 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
   - Shipped: single-file CLI at permapath.link/cli.mjs, with `llms.txt` instructions to use a key the user provides (preferably a separate one).
   - Shipped 2026-10-07 on npm: `permapath` (CLI + library) and `permapath-mcp` (a *local* MCP server, key kept on the user's machine); `llms.txt` points at both. Avoid a remote MCP connector that receives keys; read-only remote tools are fine.
   - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
+  - Co-editors (extra keys allowed to edit a link) were dropped on 2026-10-08: draft links and separate keys cover the need without a new resolver.
+- **Draft links for AI assistants** (~half a day): an assistant gives the user a pre-filled link (`permapath.link/new?dest=…&name=…`, or `edit?l=<id>&dest=…` for changes, including routing and QR design); the editor opens the form filled in and the user taps Create or Save, so their own key signs and they own the link from the start. Works with chat-only assistants; the assistant never holds a key. Add it to `llms.txt` alongside the existing options.
+- **Agents that store credentials** need nothing new: give them a separate key (or let them make one and save its recovery phrase) and they use the npm CLI/library or `permapath-mcp`. `llms.txt` could add a line for them: keep the key in the platform's credential store and never show it.
 - **Payment links:** a "Payment" destination type that builds a Venmo, Cash App or PayPal link from a username and an optional amount and note (e.g. `https://venmo.com/USER?txn=pay&amount=10&note=…`). Works today by pasting such a link as a web address; this would only make it easier. Zelle has no public links.
 
 ## Planned: file links, the first paid feature (notes, not built)
@@ -77,7 +80,6 @@ link, limits, low-float alert.
 
 ## Needs a new resolver (bundle these; only new codes get them, or old ones via the `Resolver` handoff tag)
 
-- **Backup key and co-editors** (set aside 2026-10-05: too much complexity for the benefit; the recovery phrase covers lost keys): a link names a recovery key or extra keys allowed to update it. It would make agent access safer: give an AI agent its own key with edit rights instead of the main key.
 - **Ownership transfer:** the owner signs "this link now belongs to <public ID>"; the resolver follows the new owner from then on. Transfers must be ordered by when Arweave confirmed them, not by the owner-written Seq, or a previous owner could backdate a transfer back to themselves; so a transfer takes effect after confirmation (up to about an hour). About 2–3 days with the editor screen.
 
 ## Deliberately not planned

@@ -3,6 +3,7 @@ import { loadLogo, loadedLogo, remember, imageFromDataUrl } from './logos.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
 import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
 import { optionsFields } from './options.js';
+import { parseDraft, draftOptions } from './drafts.js';
 import { RESOLVER_BASE } from './config.js';
 import { buildPageHtml, parsePageHtml, pageBytes, compressImage, buildVcard, buildIcs, PAGE_MAX_BYTES, LOCKED_PAGE_MAX, CONTACT_FIELDS } from './page.js';
 import { buildLockedHtml, parseLockedHtml, openLocked, passwordAdvice, suggestPassphrase } from './lock.js';
@@ -318,6 +319,121 @@ $('design-svg').addEventListener('click', () => download(new Blob([designedSvg(d
 
 // ---------- sign in / new key ----------
 
+// ---------- draft links (prepared by AI assistants; see drafts.js) ----------
+// Read once from the address and kept for this tab, so it survives creating a
+// key or signing in. The address is cleaned so a reload doesn't reapply it.
+const DRAFT_KEY = 'permapath:draft';
+let pendingDraft = (() => {
+  const fromUrl = parseDraft(location.search);
+  if (fromUrl) {
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(fromUrl)); } catch { /* fine */ }
+    history.replaceState(null, '', location.pathname);
+    return fromUrl;
+  }
+  try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
+})();
+let draftDesign = null; // a QR design from the applied draft, saved with Create or Save
+let draftEditId = null;
+$('signin-draft').hidden = !pendingDraft;
+
+function forgetDraft() {
+  pendingDraft = null;
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* fine */ }
+  $('signin-draft').hidden = true;
+}
+$('signin-draft-discard').addEventListener('click', forgetDraft);
+
+const toLocalInput = (iso) => {
+  const t = Date.parse(iso || '');
+  if (Number.isNaN(t)) return '';
+  const d = new Date(t), p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+};
+
+// Fills a create or edit form's destination fields from a draft.
+function fillDestination(prefix, fields, d) {
+  const type = d.type || (d.dest ? 'url' : null);
+  if (!type) return;
+  fields.setKind(type);
+  if (type === 'url') fields.setUrl(d.dest || '');
+  if (type === 'page') $(`${prefix}-page-title`).value = d.title || '';
+  if (type === 'contact') {
+    for (const f of ['role', 'phone', 'email', 'website', 'address']) $(`${prefix}-contact-${f}`).value = d[f] || '';
+    $(`${prefix}-contact-name`).value = d.contact_name || '';
+  }
+  if (type === 'event') {
+    $(`${prefix}-event-name`).value = d.event_name || '';
+    $(`${prefix}-event-start`).value = toLocalInput(d.start);
+    $(`${prefix}-event-end`).value = toLocalInput(d.end);
+    $(`${prefix}-event-location`).value = d.location || '';
+  }
+  if (type !== 'url' && d.text !== undefined) $(`${prefix}-page-text`).value = d.text;
+  $(`${prefix}-page-text`).dispatchEvent(new Event('input')); // refresh the size note
+}
+
+function describeDraftDesign() {
+  if (!draftDesign || !Object.keys(draftDesign).length) return '';
+  const bits = [draftDesign.label && `label “${draftDesign.label}”`, draftDesign.frame && `${draftDesign.frame === 'bar' ? 'label bar' : draftDesign.frame} frame`,
+    draftDesign.icon && `${ICONS[draftDesign.icon]?.label.toLowerCase() || draftDesign.icon} icon`, draftDesign.style === 'rounded' && 'rounded style',
+    draftDesign.fg && 'custom colors'].filter(Boolean);
+  return `It also sets a QR design (${bits.join(', ') || 'custom'}), saved with the link.`;
+}
+
+async function applyDraft() {
+  const d = pendingDraft;
+  if (!d) return;
+  forgetDraft();
+  draftDesign = d.qr ? cleanDesign(d.qr) : null;
+  const options = draftOptions(d);
+  if (d.mode === 'new') {
+    createFields.reset();
+    fillDestination('create', createFields, d);
+    $('create-name').value = d.name || '';
+    createOptions.set({ ...NEW_LINK_OPTIONS, ...options });
+    if (Object.keys(options).length) $('create-options').open = true;
+    $('create-draft-qr').textContent = describeDraftDesign();
+    $('create-draft').hidden = false;
+    $('create-form').scrollIntoView({ block: 'start' });
+    return;
+  }
+  const link = links.find((l) => l.id === d.linkId);
+  if (!link) {
+    draftDesign = null;
+    $('list-status').textContent = 'An AI assistant prepared a change for a link this key doesn’t own, or that hasn’t loaded yet. Sign in with the key that made it.';
+    return;
+  }
+  await openEdit(link);
+  const view = link.pending || link;
+  fillDestination('edit', editFields, d);
+  if (d.name !== undefined) $('edit-name').value = d.name;
+  if (Object.keys(options).length) {
+    editOptions.set({ ...carry(view), ...options }, { locked: editFields.locked() });
+    $('edit-options').open = true;
+  }
+  draftEditId = link.id;
+  const to = d.dest ? `point it to ${d.dest}` : 'change it';
+  $('edit-draft').replaceChildren(h('strong', {}, 'Suggested by an AI assistant: '),
+    `${to}${view.destination ? ` (now ${describe(view)})` : ''}. ${describeDraftDesign()} Check it, then press Save, or Cancel to ignore it.`);
+  $('edit-draft').hidden = false;
+}
+
+function clearCreateDraft() {
+  $('create-draft').hidden = true;
+  if (!draftEditId) draftDesign = null;
+}
+$('create-draft-discard').addEventListener('click', () => {
+  createFields.reset();
+  $('create-name').value = '';
+  createOptions.set(NEW_LINK_OPTIONS);
+  clearCreateDraft();
+});
+$('edit-dialog').addEventListener('close', () => {
+  if (!draftEditId) return;
+  draftEditId = null;
+  draftDesign = null;
+  $('edit-draft').hidden = true;
+});
+
 async function signIn(text) {
   key = await loadKey(text);
   keyText = text.trim();
@@ -328,6 +444,7 @@ async function signIn(text) {
   // Let password managers notice the "navigation" and offer to save.
   history.pushState({}, '', location.pathname + location.search + '#links');
   await refresh();
+  await applyDraft();
 }
 
 $('login-form').addEventListener('submit', async (e) => {
@@ -1001,13 +1118,15 @@ $('create-form').addEventListener('submit', async (e) => {
       const { destination, kind, title, published } = await publishDestination(createFields);
       const name = $('create-name').value.trim() || title || '';
       const seq = Date.now();
-      const id = await publish(linkTags({ destination, name, kind, seq, ...options }));
-      const state = { id, created: seq, seq, destination, name, kind, disabled: false, ...options };
+      const design = !$('create-draft').hidden && draftDesign ? draftDesign : undefined;
+      const id = await publish(linkTags({ destination, name, kind, seq, ...options, design }));
+      const state = { id, created: seq, seq, destination, name, kind, disabled: false, ...options, ...(design ? { design } : {}) };
       addPending(state);
       if (published) trackPublishing(destination);
       e.target.reset();
       createFields.reset();
       createOptions.set(NEW_LINK_OPTIONS);
+      clearCreateDraft();
       // Show the new link right away (no pop-up); tap it for the QR code.
       links = overlayPending(links.filter((l) => !l.unindexed).map(({ pending, ...l }) => l), readPending()).links;
       render();
@@ -1089,6 +1208,7 @@ $('edit-form').addEventListener('submit', async (e) => {
         kind,
         disabled: view.destination ? view.disabled : false, // setting a first destination turns the link on
         ...options,
+        ...(draftEditId === link.id && draftDesign ? { design: draftDesign } : {}),
       });
       $('edit-progress').textContent = '';
       $('edit-dialog').close();

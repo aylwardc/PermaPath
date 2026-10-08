@@ -11,10 +11,10 @@
 // Protocol: JSON-RPC 2.0 messages, one per line on stdin/stdout (MCP stdio).
 import fs from 'node:fs';
 import {
-  loadKey, createLink, updateLink, listLinks, getLink, getScans, createPage, linkUrl, linkStatus, linkQrSvgDesigned, uploadStatus, suggestFeature,
+  loadKey, createLink, updateLink, listLinks, getLink, getScans, createPage, linkUrl, linkStatus, linkQrSvgDesigned, uploadStatus, suggestFeature, draftLinkUrl,
 } from '../lib/permapath.js';
 
-export const SERVER_INFO = { name: 'permapath', version: '0.1.3' }; // keep in step with VERSION in scripts/build-npm.mjs
+export const SERVER_INFO = { name: 'permapath', version: '0.1.4' }; // keep in step with VERSION in scripts/build-npm.mjs
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 
 const LINK_ID = { type: 'string', description: 'The 43-character link ID (the part after ?l= in a PermaPath QR link).', pattern: '^[A-Za-z0-9_-]{43}$' };
@@ -51,6 +51,35 @@ export const TOOLS = {
     description: 'The QR code for a link as SVG markup (print-ready, with the link\'s saved design). Save it to a .svg file to print or share.',
     inputSchema: { type: 'object', properties: { link_id: LINK_ID }, required: ['link_id'] },
     async run({ link_id }) { return { svg: await linkQrSvgDesigned(link_id) }; },
+  },
+  draft_link: {
+    description: 'A link that opens PermaPath with a new link (or a change to one of the user\'s links) already filled in. The user checks it and taps Create or Save, so their own key signs it; no key needed here. Use this when no key is configured, or the user would rather approve each change. Give the user the url.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        link_id: { ...LINK_ID, description: 'Only to change an existing link: its 43-character ID. Omit to create a new link.' },
+        type: { type: 'string', enum: ['url', 'page', 'contact', 'event'], description: 'What the link opens (default: a web address).' },
+        destination: { type: 'string', description: 'Web address (type url).' },
+        name: { type: 'string', description: 'Link name (public).' },
+        title: { type: 'string', description: 'Page title (type page).' },
+        text: { type: 'string', description: 'Page text, or a contact card\'s note, or an event\'s details.' },
+        contact_name: { type: 'string' }, role: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' }, website: { type: 'string' }, address: { type: 'string' },
+        event_name: { type: 'string' },
+        start: { type: 'string', description: 'Event start, ISO 8601 local time, e.g. 2026-11-01T19:00' },
+        end: { type: 'string' }, location: { type: 'string' },
+        count_scans: { type: 'boolean' },
+        off_at: { type: 'string', description: 'ISO 8601 date and time to turn off.' },
+        message: { type: 'string', description: 'Shown while the link is off.' },
+        ios: { type: 'string', description: 'Other destination for iPhone and iPad users.' },
+        android: { type: 'string', description: 'Other destination for Android users.' },
+        rules: { type: 'array', items: { type: 'object' }, description: 'Routing rules: { to, os?, after?, before?, days?, from?, until? }; first match wins.' },
+        qr: { type: 'object', description: 'QR design: { fg, bg, transparent, style: square|rounded, label, frame: square|rounded|bar, icon, sturdy }.' },
+      },
+    },
+    run({ link_id, destination, count_scans, ...rest }) {
+      const url = draftLinkUrl({ linkId: link_id, dest: destination, count: count_scans, ...rest });
+      return { url, note: 'Nothing is saved until the user opens this, signs in, and taps Create or Save.' };
+    },
   },
   suggest_feature: {
     description: 'Send a feature suggestion to the PermaPath team when the user wants something PermaPath can\'t do. Ask the user first and show them the text you\'ll send; include their email only if they offer it (to be told when it\'s done). Private: never published.',

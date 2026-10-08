@@ -43,6 +43,10 @@
   <p class="intro">Change where a QR code points after it’s been printed. Printed QR codes often outlive their content, which means reprinting or destroying them. Dynamic links let you update the content behind a QR code without changing the code itself.</p>
 
   <noscript><p class="card">Signing in and creating links needs JavaScript.</p></noscript>
+  <div class="draft-note" id="signin-draft" hidden>
+    <strong>An AI assistant prepared a link for you.</strong> Sign in (or create a key) to review it. Nothing is saved until you press Create or Save.
+    <button type="button" class="link" id="signin-draft-discard">Discard it</button>
+  </div>
   <!-- Shown at once; its buttons stay disabled until app.js is ready, so they're
        never dead. The rest of the page is readable without scripts. -->
   <form id="login-form" class="card">
@@ -189,6 +193,10 @@
   <main class="wide">
     <form id="create-form" class="card">
       <h2>New link</h2>
+      <div class="draft-note" id="create-draft" hidden>
+        <strong>Prepared by an AI assistant.</strong> Check everything below, then press <strong>Create link</strong>. <span id="create-draft-qr"></span>
+        <button type="button" class="link" id="create-draft-discard">Discard</button>
+      </div>
       <div id="create-destination" class="destination">
         <fieldset class="kind">
           <legend>Send people to</legend>
@@ -422,6 +430,7 @@
 <dialog id="edit-dialog">
   <form id="edit-form" class="dialog-body">
     <h2 id="edit-title">Edit link</h2>
+    <div class="draft-note" id="edit-draft" hidden></div>
     <div id="edit-destination" class="destination">
       <fieldset class="kind">
         <legend>Send people to</legend>

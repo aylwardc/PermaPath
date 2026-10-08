@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const VERSION = '0.1.3'; // bump before each publish
+export const VERSION = '0.1.4'; // bump before each publish
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = path.join(root, 'dist/npm');

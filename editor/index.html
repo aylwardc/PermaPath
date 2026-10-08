@@ -44,7 +44,7 @@
 
   <noscript><p class="card">Signing in and creating links needs JavaScript.</p></noscript>
   <div class="draft-note" id="signin-draft" hidden>
-    <strong>An AI assistant prepared a link for you.</strong> Sign in (or create a key) to review it. Nothing is saved until you press Create or Save.
+    <span id="signin-draft-text"><strong>An AI assistant prepared a link for you.</strong> Sign in (or create a key) to review it. Nothing is saved until you press Create or Save.</span>
     <button type="button" class="link" id="signin-draft-discard">Discard it</button>
   </div>
   <!-- Shown at once; its buttons stay disabled until app.js is ready, so they're
@@ -288,8 +288,8 @@
     <details class="card batch">
       <summary>Create several links at once</summary>
       <form id="batch-form">
-        <p class="muted">For codes you want to print before you know where they’ll go. This is handy if, for example, you want to print a sheet of QR codes
-          before you know where each one will point. You can edit them after creation as you use them.</p>
+        <p class="muted">For codes you print before you know where they’ll go, like a sheet of stickers. Each one starts as <strong>Not set up</strong>:
+          when you use one, scan it and sign in, and it opens straight to its setup. Save, and it’s live.</p>
         <div class="batch-fields">
           <label>How many
             <input id="batch-count" type="number" inputmode="numeric" min="1" max="100" value="10" required>

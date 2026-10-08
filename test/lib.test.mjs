@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { generateKey, loadKey, createLink, createBatch, linkUrl, linkQrSvg } from '../lib/permapath.js';
+import { generateKey, loadKey, createLink, createBatch, linkUrl, linkQrSvg, getLink, updateLink, linkStatus } from '../lib/permapath.js';
+import { createFakeArweave } from './fake-arweave.mjs';
 import { RESOLVER_BASE } from '../editor/config.js';
 
 test('linkUrl and QR SVG use the current resolver', () => {
@@ -14,6 +15,25 @@ test('createLink and createBatch validate input before touching the network', as
   const key = await loadKey(generateKey());
   await assert.rejects(createLink(key, { destination: 'javascript:alert(1)' }), /http and https/);
   await assert.rejects(createBatch(key, { count: 0 }), /count must be/);
+});
+
+test('createBatch makes codes that open setup when scanned; setting one makes it live', async () => {
+  const restore = createFakeArweave().installNode();
+  try {
+    const key = await loadKey(generateKey());
+    const [one, two] = await createBatch(key, { count: 2, prefix: 'Sticker' });
+    const link = await getLink(one.id);
+    assert.equal(linkStatus(link.current), 'not set up');
+    assert.equal(link.current.setup, `https://permapath.link/?setup=${link.created}`);
+    await updateLink(key, one.id, { destination: 'https://example.com/found' });
+    const set = await getLink(one.id);
+    assert.equal(set.current.destination, 'https://example.com/found');
+    assert.equal(linkStatus(set.current), 'live');
+    await updateLink(key, two.id, { disabled: true });
+    assert.equal(linkStatus((await getLink(two.id)).current), 'off');
+  } finally {
+    restore();
+  }
 });
 
 test('CLI prints help and fails clearly without a key', () => {

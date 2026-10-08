@@ -8,6 +8,8 @@
 //
 // Parameters (all optional except as noted):
 //   new | edit=<id>   create a link, or change one the user owns (one is required)
+//   (setup=<seq> is different: scanning a batch code that isn't set up yet opens
+//   its setup form; see SETUP_BASE in links.js)
 //   type              url (default) | page | contact | event
 //   dest              web address (type url)
 //   name              link name
@@ -33,6 +35,8 @@ function json(text) {
 /** Reads a draft from a query string, or returns null if there isn't one. */
 export function parseDraft(search) {
   const p = new URLSearchParams(search);
+  const setup = p.get('setup');
+  if (setup && /^\d{1,16}$/.test(setup)) return { mode: 'setup', seq: Number(setup) };
   const editId = p.get('edit');
   const mode = editId && ID.test(editId) ? 'edit' : p.has('new') ? 'new' : null;
   if (!mode) return null;

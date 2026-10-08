@@ -21,7 +21,7 @@ Usage: permapath <command> [options]
                                  Create a link to a simple page you write
   edit-page <link-id> [--title T] [--text T | --text-file F] [--photo F | --no-photo]
                                  Change a page, keeping what you don't pass
-  batch <count> [--prefix P]     Create "not set up" links (CSV to stdout)
+  batch <count> [--prefix P]     Create "not set up" links; scanning one opens setup (CSV to stdout)
   list                           List your links
   show <link-id>                 Current destination and full history (no key needed)
   set <link-id> <url>            Change where a link points

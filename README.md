@@ -9,7 +9,7 @@ registry: just Arweave data items and gateway GraphQL.
 ## Live
 
 - **Editor:** https://permapath.link/ once the Worker is deployed (see Deploy);
-  directly: https://arweave.net/zM_B3B33lkEHbn1RPC48ZW-qPTYmestgusTsjNlum20/
+  directly: https://arweave.net/P8uXT5Mk0KdGNlUi5pBqTl784ZHUd49jH2HzWBUD6_M/
 - **Resolver:** v3, https://arweave.net/u3gO3Oo3P-loxIOdLUlnUgflSqEovH6YIkrJBLLRfhE
   (`RESOLVER_TX` in `editor/config.js`). Older codes use v2 (`baTff…`) or v1 (`G81f…`)
   and forward to v3 when their owner uses a v3 feature.
@@ -33,9 +33,13 @@ registry: just Arweave data items and gateway GraphQL.
   the PermaPath key (so the owner can always edit and keep the password). Visitors decrypt in
   the browser; no server is involved. Link records carry `Kind: locked`. Strong passwords are
   recommended, not enforced.
-- **Not set up:** a link can be created with no `Destination` and `Disabled: true`
-  (batch creation for pre-printed codes); scans show "turned off" until an update
-  sets a destination.
+- **Not set up:** batch codes (and blank CSV rows) are created pointing at
+  `https://permapath.link/?setup=<Seq>`, their own creation `Seq` (the link ID can't be known
+  before signing). Scanning one opens the editor, which, after sign-in, opens the setup form of
+  the key's link created at that `Seq`; saving a destination makes it live. The editor and
+  library read that address back as "not set up" (`setup` field, empty `destination`), so links
+  show as Live, Off or Not set up, and a not-set-up code can be turned off and on. Older
+  not-set-up links have no `Destination` and `Disabled: true`, so scans show "turned off".
 - **Update:** upload a data item tagged `Type: update`, `Link: <LINK_ID>`, plus the
   full new state (`Destination`, `Seq`, optional `Name`, optional `Disabled: true`).
 - **Resolve:** look up the link by ID to learn its owner, then query updates with

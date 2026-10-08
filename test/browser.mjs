@@ -248,8 +248,12 @@ async function openCreated(page, name) {
   const card = page.locator('.link-item', { hasText: name }).first();
   await card.waitFor({ timeout: 60_000 });
   assert.equal(await page.locator('#qr-dialog').isVisible(), false, 'no pop-up after creating');
-  await card.locator('h3').click();
-  await page.locator('#qr-dialog').waitFor({ state: 'visible', timeout: 30_000 });
+  // A background refresh can redraw the list just as the card is tapped; tap again if so.
+  for (let i = 0; i < 5 && !(await page.locator('#qr-dialog').isVisible()); i++) {
+    await card.locator('h3').click();
+    await page.locator('#qr-dialog').waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+  }
+  await page.locator('#qr-dialog').waitFor({ state: 'visible', timeout: 5_000 });
 }
 
 if (which === 'all' || which === 'editor') {
@@ -337,6 +341,7 @@ if (which === 'all' || which === 'editor') {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(base);
     await page.getByRole('button', { name: 'Create a key' }).click();
+    const keyText = await page.locator('#newkey-key').inputValue();
     await page.getByLabel('I’ve saved this key somewhere safe').check();
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByText('No links yet').waitFor({ timeout: 30_000 });
@@ -356,7 +361,7 @@ if (which === 'all' || which === 'editor') {
     await cards.nth(2).waitFor();
     assert.equal(await cards.count(), 3);
     await cards.first().getByText('Batch test 1').waitFor();
-    await cards.first().getByText('No destination yet').waitFor();
+    await cards.first().getByText('Not set up yet. Scan the code to set it up.').waitFor();
     await cards.first().locator('h3').click(); // tapping the card opens its QR code
     await page.locator('#qr-dialog').waitFor({ state: 'visible' });
     await page.getByRole('button', { name: 'Done' }).click();
@@ -373,6 +378,35 @@ if (which === 'all' || which === 'editor') {
     const [allDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export CSV' }).click()]);
     const all = fs.readFileSync(await allDl.path(), 'utf8');
     assert.match(all, /Batch test 1,[^\n]*,https:\/\/example\.com\/\?pp=batch-set,live,/);
+
+    // A not-set-up code can be turned off and on like any other.
+    const third = page.locator('.link-item', { hasText: 'Batch test 3' });
+    await third.getByRole('button', { name: 'Turn off' }).click();
+    await third.locator('.chip', { hasText: 'Off' }).waitFor({ timeout: 30_000 });
+    await third.getByRole('button', { name: 'Turn on' }).click();
+    await third.locator('.chip', { hasText: 'Not set up' }).waitFor({ timeout: 30_000 });
+
+    // Scanning code 2 lands on its setup page: sign in, and its setup form opens.
+    const id2 = await page.locator('.link-item', { hasText: 'Batch test 2' }).getAttribute('data-id');
+    let rec;
+    for (let i = 0; i < 20 && !rec?.current.setup; i++) { rec = await fetchLinkHistory(id2).catch(() => null); if (!rec?.current.setup) await page.waitForTimeout(500); }
+    const scanned = new URL(rec.current.setup);
+    assert.equal(scanned.origin + scanned.pathname, 'https://permapath.link/');
+    await page.goto(`${base}/${scanned.search}`);
+    await page.locator('#signin-draft', { hasText: 'This QR code isn’t set up yet' }).waitFor();
+    await page.locator('#login-key').fill(keyText);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.locator('#edit-dialog').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('#edit-draft', { hasText: 'You scanned this code' }).waitFor();
+    assert.match(await page.locator('#edit-name').inputValue(), /^Batch test 2$/);
+    await page.locator('#edit-dest').fill('example.com/?pp=scanned-setup');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await page.locator('#edit-dialog').waitFor({ state: 'hidden', timeout: 30_000 });
+    const second = page.locator('.link-item', { hasText: 'Batch test 2' });
+    await second.getByText('https://example.com/?pp=scanned-setup').waitFor({ timeout: 30_000 });
+    for (let i = 0; i < 20; i++) { rec = await fetchLinkHistory(id2); if (rec.current.destination) break; await page.waitForTimeout(500); }
+    assert.equal(rec.current.destination, 'https://example.com/?pp=scanned-setup');
+    assert.equal(rec.current.disabled, false);
     assert.deepEqual(errors, []);
   });
   await check('editor: hosted page create, load for edit, update, switch back to URL', async (page) => {
@@ -465,7 +499,7 @@ if (which === 'all' || which === 'editor') {
     assert.match(csv, /Import B,[^\n]*,,not set up,/);
     await page.getByRole('button', { name: 'Close' }).click();
     await page.locator('.link-item', { hasText: 'Original' }).getByText('https://example.com/?pp=imp-updated').waitFor({ timeout: 30_000 });
-    await page.locator('.link-item', { hasText: 'Import B' }).getByText('Not set up').waitFor({ timeout: 90_000 });
+    await page.locator('.link-item', { hasText: 'Import B' }).getByText('Not set up', { exact: true }).waitFor({ timeout: 90_000 });
     assert.deepEqual(errors, []);
   });
   await check('editor: password protect a link, unlock it, edit keeping the password, unlock', async (page) => {

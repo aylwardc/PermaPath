@@ -25,6 +25,7 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 - **Type tags** on links (Web address, Page, Contact, Event); the table has separate Type and Destination columns.
 - **Feature suggestions** from the website, AI assistants (pre-filled link), MCP and the CLI; kept privately and emailed to Chris within minutes.
 - **npm:** `permapath` (CLI + library) and `permapath-mcp` (local MCP server); releases are staged for Chris's approval with 2FA.
+- **Scan to set up** (2026-10-08): batch codes start as Not set up; scanning one opens the editor to set it up, and saving makes it live. Statuses are Live, Off and Not set up.
 
 ## Next: editor-only (no resolver change)
 

@@ -37,7 +37,7 @@ Tell the user to open it, sign in (or create a key), check the form, and tap **C
 - A header row, then one row per link.
 - Columns (any order): `name`, `destination`, and optionally `link_id`.
   - `name`: a short label, up to 100 characters. Public. Optional.
-  - `destination`: a full web address starting with `https://` (or `http://`). Leave it empty to create a "not set up" link whose destination will be set later, for example for codes printed in advance.
+  - `destination`: a full web address starting with `https://` (or `http://`). Leave it empty to create a "not set up" link, for example for stickers printed in advance: scanning one opens PermaPath, and after signing in the user sets it up right there.
   - `link_id`: only for changing links that already exist. Use the IDs from a CSV the user exported from PermaPath. Empty cells in these rows mean "leave unchanged".
 - Quote any value that contains a comma.
 - Up to 100 links per import.

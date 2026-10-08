@@ -30,7 +30,7 @@ function safeLink(url) {
 }
 
 function describe(state) {
-  if (!state.destination) return h('span', { class: 'muted' }, 'No destination yet');
+  if (!state.destination) return h('span', { class: 'muted' }, state.setup ? (state.disabled ? 'Turned off · not set up yet' : 'Not set up yet (scanning opens setup)') : 'No destination yet');
   if (!state.disabled && state.offAt) {
     return h('span', {}, h('span', { class: 'muted' }, `${isOffNow(state) ? 'Turned off' : 'Turns off'} ${when(state.offAt)} · `), describeOn(state));
   }

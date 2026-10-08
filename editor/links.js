@@ -78,9 +78,18 @@ function v3Tags({ count, message, offAt, routes, tz }) {
   ];
 }
 
+// "Not set up" links made in a batch point at a setup page on permapath.link, so
+// scanning one opens the editor to set it up. The address carries the link's
+// creation Seq (its ID can't be known before it's signed); the editor matches it
+// against the signed-in key's links. Read back, such a link has destination ''
+// and `setup` holding the address, so everywhere else it's simply "not set up".
+export const SETUP_BASE = 'https://permapath.link/?setup=';
+export const setupUrl = (seq) => `${SETUP_BASE}${seq}`;
+const isSetupUrl = (d) => /^https:\/\/permapath\.link\/\?setup=\d{1,16}$/.test(d || '');
+
 // The protocol fields of a link state (drops display-only fields like pending).
 export const carry = (s) => ({
-  name: s.name, destination: s.destination, disabled: s.disabled, resolver: s.resolver, kind: s.kind,
+  name: s.name, destination: s.destination, setup: s.setup || '', disabled: s.disabled, resolver: s.resolver, kind: s.kind,
   count: !!s.count, message: s.message || '', offAt: s.offAt || 0, routes: s.routes || [], tz: s.tz || '',
   design: s.design || {},
 });
@@ -89,20 +98,22 @@ export const carry = (s) => ({
 const designTags = (design) => (isPlain(design) ? [] : [{ name: 'Design', value: JSON.stringify(cleanDesign(design)) }]);
 
 // Full state goes in every record, so the newest record alone describes the link.
-// A link with no destination yet ("not set up", e.g. pre-printed batches) is
-// created turned off, so scans show the resolver's "turned off" message.
+// A link with no destination yet is either waiting to be set up (`setup`: scans
+// open the setup page) or, without one, turned off so scans show the resolver's
+// "turned off" message (codes made before setup pages).
 // kind: '' for a web address, 'page' for a PermaPath hosted page, 'contact' for a
 // contact card (a hosted page with a vCard), 'event' for an event page (with
 // an .ics calendar file), 'locked' for a
 // password-protected locked page (editor hint only; resolvers ignore it).
-export function linkTags({ destination, name, disabled, kind, seq, design, ...v3 }) {
+export function linkTags({ destination, setup, name, disabled, kind, seq, design, ...v3 }) {
+  const to = destination || setup;
   return [
     ...BASE_TAGS,
     { name: 'Type', value: 'link' },
-    ...(destination ? [{ name: 'Destination', value: destination }] : []),
+    ...(to ? [{ name: 'Destination', value: to }] : []),
     { name: 'Seq', value: String(seq) },
     ...(name ? [{ name: 'Name', value: name }] : []),
-    ...(disabled || !destination ? [{ name: 'Disabled', value: 'true' }] : []),
+    ...(disabled || !to ? [{ name: 'Disabled', value: 'true' }] : []),
     ...(kind && destination ? [{ name: 'Kind', value: kind }] : []),
     ...v3Tags(v3),
     ...designTags(design),
@@ -110,16 +121,17 @@ export function linkTags({ destination, name, disabled, kind, seq, design, ...v3
 }
 
 // `resolver` hands the link off to a newer resolver page; kept on every later update.
-export function updateTags({ linkId, destination, name, disabled, resolver, kind, seq, design, ...v3 }) {
+export function updateTags({ linkId, destination, setup, name, disabled, resolver, kind, seq, design, ...v3 }) {
   if (usesV3(v3)) resolver = RESOLVER_TX;
+  const to = destination || setup;
   return [
     ...BASE_TAGS,
     { name: 'Type', value: 'update' },
     { name: 'Link', value: linkId },
-    ...(destination ? [{ name: 'Destination', value: destination }] : []),
+    ...(to ? [{ name: 'Destination', value: to }] : []),
     { name: 'Seq', value: String(seq) },
     ...(name ? [{ name: 'Name', value: name }] : []),
-    ...(disabled || !destination ? [{ name: 'Disabled', value: 'true' }] : []),
+    ...(disabled || !to ? [{ name: 'Disabled', value: 'true' }] : []),
     ...(resolver ? [{ name: 'Resolver', value: resolver }] : []),
     ...(kind && destination ? [{ name: 'Kind', value: kind }] : []),
     ...v3Tags(v3),
@@ -150,11 +162,12 @@ const toState = (id, created, tags) => ({
   id,
   created,
   seq: Number(tags.Seq),
-  destination: tags.Destination || '',
+  destination: isSetupUrl(tags.Destination) ? '' : tags.Destination || '',
+  setup: isSetupUrl(tags.Destination) ? tags.Destination : '',
   name: tags.Name || '',
   disabled: tags.Disabled === 'true',
   resolver: tags.Resolver || '',
-  kind: ['page', 'locked', 'contact', 'event'].includes(tags.Kind) ? tags.Kind : '',
+  kind: ['page', 'locked', 'contact', 'event'].includes(tags.Kind) && !isSetupUrl(tags.Destination) ? tags.Kind : '',
   count: tags.Count === 'true',
   message: tags.Message || '',
   offAt: /^\d{1,16}$/.test(tags['Off-At'] || '') ? Number(tags['Off-At']) : 0,
@@ -237,7 +250,10 @@ export function overlayPending(links, pending) {
   };
 }
 
-export const linkStatus = (state) => (!state.destination ? 'not set up' : isOffNow(state) ? 'off' : 'live');
+// A link waiting for setup can be turned off like any other; older "not set up"
+// links (no setup page) are off until they get a destination.
+export const linkStatus = (state) => (!state.destination && !state.setup ? 'not set up'
+  : isOffNow(state) ? 'off' : !state.destination ? 'not set up' : 'live');
 
 // CSV for spreadsheets and label tools (e.g. Avery's QR-from-spreadsheet import).
 // qr_url is what each QR code should encode.

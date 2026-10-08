@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDestination, linkTags, updateTags, buildLinks, overlayPending, linkStatus, linksToCsv } from '../editor/links.js';
+import { normalizeDestination, linkTags, updateTags, buildLinks, overlayPending, linkStatus, linksToCsv, carry, setupUrl } from '../editor/links.js';
 
 const node = (id, tags) => ({ id, owner: 'o', tags: Object.fromEntries(tags.map((t) => [t.name, t.value])) });
 
@@ -75,6 +75,31 @@ test('links without a destination are created turned off and read back as not se
   assert.ok(updateTags({ linkId: 'L1', destination: '', seq: 300 }).some((t) => t.name === 'Disabled'));
 });
 
+test('batch codes point at their setup page: not set up, can be turned off, live once set', () => {
+  const tags = linkTags({ name: 'Sticker 01', seq: 100, setup: setupUrl(100), count: true });
+  assert.ok(tags.some((t) => t.name === 'Destination' && t.value === 'https://permapath.link/?setup=100'));
+  assert.ok(!tags.some((t) => t.name === 'Disabled'), 'on, so scans reach the setup page');
+  const [link] = buildLinks([node('L1', tags)]);
+  assert.equal(link.destination, '');
+  assert.equal(link.setup, 'https://permapath.link/?setup=100');
+  assert.equal(linkStatus(link), 'not set up');
+
+  const off = updateTags({ linkId: 'L1', ...carry(link), disabled: true, seq: 150 });
+  assert.ok(off.some((t) => t.name === 'Destination' && t.value === link.setup), 'turning it off keeps the setup page');
+  const [offLink] = buildLinks([node('L1', tags), node('u0', off)]);
+  assert.equal(linkStatus(offLink), 'off');
+  assert.equal(linkStatus({ ...offLink, disabled: false }), 'not set up');
+
+  const set = updateTags({ linkId: 'L1', ...carry(link), destination: 'https://a.example/', seq: 200 });
+  const [live] = buildLinks([node('L1', tags), node('u1', set)]);
+  assert.equal(live.destination, 'https://a.example/');
+  assert.equal(live.setup, '');
+  assert.equal(linkStatus(live), 'live');
+  // Only the exact setup address counts; other permapath.link pages are ordinary destinations.
+  const [other] = buildLinks([node('L2', linkTags({ destination: 'https://permapath.link/?setup=1&x', seq: 1 }))]);
+  assert.equal(other.destination, 'https://permapath.link/?setup=1&x');
+});
+
 test('linksToCsv quotes, guards formulas, and lists what to encode', () => {
   const url = (id) => `https://arweave.net/R?l=${id}`;
   const csv = linksToCsv([
@@ -134,7 +159,7 @@ test('v3 fields round-trip, and updates using them name the current resolver', a
   assert.equal(update.find((t) => t.name === 'Time-Zone').value, 'America/New_York');
 
   const [link] = buildLinks([node('L1', created), node('u1', update)]);
-  assert.deepEqual(carry(link), { name: '', destination: 'https://a.example/', disabled: false, resolver: RESOLVER_TX, kind: '', ...v3, design: {} });
+  assert.deepEqual(carry(link), { name: '', destination: 'https://a.example/', setup: '', disabled: false, resolver: RESOLVER_TX, kind: '', ...v3, design: {} });
 
   // Turning everything off keeps the resolver (harmless) and drops the tags.
   const plain = updateTags({ linkId: 'L1', ...carry(link), count: false, message: '', offAt: 0, routes: [], seq: 3 });

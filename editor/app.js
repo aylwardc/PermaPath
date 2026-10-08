@@ -1,7 +1,7 @@
 import { qrSvg, drawQr, qrCanvasSize, cleanDesign, checkDesign, ICONS, CENTER_DEFAULT } from './qr.js';
 import { loadLogo, loadedLogo, remember, imageFromDataUrl } from './logos.js';
 import { generateKeyText, loadKey, createDataItem, upload } from './arweave.js';
-import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById } from './links.js';
+import { normalizeDestination, linkTags, updateTags, fetchLinks, overlayPending, linkStatus, linksToCsv, planImport, carry, isOffNow, findableById, setupUrl } from './links.js';
 import { optionsFields } from './options.js';
 import { parseDraft, draftOptions } from './drafts.js';
 import { RESOLVER_BASE } from './config.js';
@@ -335,6 +335,11 @@ let pendingDraft = (() => {
 let draftDesign = null; // a QR design from the applied draft, saved with Create or Save
 let draftEditId = null;
 $('signin-draft').hidden = !pendingDraft;
+if (pendingDraft?.mode === 'setup') {
+  $('signin-draft-text').replaceChildren(h('strong', {}, 'This QR code isn’t set up yet.'),
+    ' If it’s yours, sign in with the key that made it to choose where it goes.');
+  $('signin-draft-discard').textContent = 'Dismiss';
+}
 
 function forgetDraft() {
   pendingDraft = null;
@@ -383,6 +388,21 @@ async function applyDraft() {
   const d = pendingDraft;
   if (!d) return;
   forgetDraft();
+  if (d.mode === 'setup') {
+    // A batch code was scanned: open its setup form.
+    const link = links.find((l) => l.created === d.seq);
+    if (!link) {
+      $('list-status').textContent = 'The QR code you scanned wasn’t made with this key. Sign in with the key that made it to set it up.';
+      return;
+    }
+    await openEdit(link);
+    draftEditId = link.id;
+    $('edit-draft').replaceChildren((link.pending || link).destination
+      ? 'This code is already set up. You can change it here.'
+      : h('span', {}, h('strong', {}, 'You scanned this code. '), 'Choose where it goes, then press Save. It works straight away; the printed code never changes.'));
+    $('edit-draft').hidden = false;
+    return;
+  }
   draftDesign = d.qr ? cleanDesign(d.qr) : null;
   const options = draftOptions(d);
   if (d.mode === 'new') {
@@ -680,6 +700,7 @@ async function loadScanCounts() {
 }
 
 function describe(state) {
+  if (!state.destination && state.setup) return isOffNow(state) ? 'Turned off' : 'Not set up yet. Scan the code to set it up.';
   if (!state.destination) return 'No destination yet';
   if (isOffNow(state)) return state.disabled ? 'Turned off' : `Turned off automatically ${when(state.offAt)}`;
   if (state.kind === 'locked') return revealed.get(state.destination) || 'Password protected';
@@ -772,7 +793,8 @@ function renderTable() {
             h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'),
             h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off')]
           : [h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'),
-            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR')])),
+            h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'),
+            view.setup ? h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off') : null])),
     );
   });
   $('links-table').replaceChildren(h('table', { class: 'links-table' }, h('thead', {}, head), h('tbody', {}, rows)));
@@ -834,6 +856,7 @@ function render() {
             : [
               h('button', { type: 'button', onclick: () => openEdit(link) }, 'Set destination'),
               h('button', { type: 'button', onclick: () => openDesign(view) }, 'Customize QR'),
+              view.setup ? h('button', { type: 'button', onclick: (e) => setDisabled(link, !isOffNow(view), e.currentTarget) }, isOffNow(view) ? 'Turn on' : 'Turn off') : null,
             ],
         ),
       ),
@@ -1206,7 +1229,7 @@ $('edit-form').addEventListener('submit', async (e) => {
         destination,
         name,
         kind,
-        disabled: view.destination ? view.disabled : false, // setting a first destination turns the link on
+        disabled: view.destination || view.setup ? view.disabled : false, // setting a first destination turns an old not-set-up link on
         ...options,
         ...(draftEditId === link.id && draftDesign ? { design: draftDesign } : {}),
       });
@@ -1264,8 +1287,9 @@ $('batch-form').addEventListener('submit', async (e) => {
       const name = prefix ? `${prefix} ${String(i + 1).padStart(width, '0')}` : '';
       const seq = base + (count - 1 - i);
       try {
-        const id = await publish(linkTags({ name, seq, count: true }));
-        const state = { id, created: seq, seq, destination: '', name, disabled: true, count: true };
+        const setup = setupUrl(seq); // scanning it opens setup
+        const id = await publish(linkTags({ name, seq, setup, count: true }));
+        const state = { id, created: seq, seq, destination: '', setup, name, disabled: false, count: true };
         addPending(state);
         made.push({ i, state });
       } catch {
@@ -1350,8 +1374,9 @@ $('import-form').addEventListener('submit', async (e) => {
       try {
         if (job.action === 'create') {
           const seq = base + (jobs.length - 1 - i); // first row lists first
-          const id = await publish(linkTags({ destination: job.destination, name: job.name, seq, count: true }));
-          const state = { id, created: seq, seq, destination: job.destination, name: job.name, kind: '', disabled: !job.destination, count: true };
+          const setup = job.destination ? '' : setupUrl(seq); // blank rows open setup when scanned
+          const id = await publish(linkTags({ destination: job.destination, setup, name: job.name, seq, count: true }));
+          const state = { id, created: seq, seq, destination: job.destination, setup, name: job.name, kind: '', disabled: false, count: true };
           addPending(state);
           done.push({ i, state });
         } else {

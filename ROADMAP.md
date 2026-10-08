@@ -21,16 +21,18 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 - **Slow-upload notice** when Turbo refuses an upload and it goes through up.arweave.net.
 - **Usage stats:** `node scripts/stats.mjs`, emailed weekly (Mondays 9:10) by `~/python_scripts/permapath_weekly_stats.py`.
 - **Event pages:** date, place, Add to calendar (.ics), Google Calendar, Directions.
-- **QR design:** label, colors (contrast-checked), squares / rounded / dots, center logo, extra-sturdy, transparent background; saved per link.
+- **QR design**, saved per link, in its own **Customize QR** pop-up: label, frame (square, rounded, label bar), colors (contrast-checked), squares or rounded (dots were dropped: they scanned worst), 21 built-in center icons (Tabler, MIT; including Payment) or your own logo with a size slider (16–32% of the code), extra-sturdy, transparent background. Every combination is decode-tested.
+- **Type tags** on links (Web address, Page, Contact, Event); the table has separate Type and Destination columns.
+- **Feature suggestions** from the website, AI assistants (pre-filled link), MCP and the CLI; kept privately and emailed to Chris within minutes.
+- **npm:** `permapath` (CLI + library) and `permapath-mcp` (local MCP server); releases are staged for Chris's approval with 2FA.
 
-## Editor-only (no resolver change)
+## Next: editor-only (no resolver change)
 
 - **Agent access** (no resolver change needed):
   - Shipped: single-file CLI at permapath.link/cli.mjs, with `llms.txt` instructions to use a key the user provides (preferably a separate one).
-  - Shipped 2026-10-07 on npm: `permapath` (CLI + library) and `permapath-mcp` (a *local* MCP server, key kept on the user's machine); `llms.txt` points at both. Releases are staged and approved by Chris with 2FA. Avoid a remote MCP connector that receives keys; read-only remote tools are fine.
+  - Shipped 2026-10-07 on npm: `permapath` (CLI + library) and `permapath-mcp` (a *local* MCP server, key kept on the user's machine); `llms.txt` points at both. Avoid a remote MCP connector that receives keys; read-only remote tools are fine.
   - Already shipped: `llms.txt` plus CSV import, so any chatbot can draft links that the user imports in the browser.
 - **Payment links:** a "Payment" destination type that builds a Venmo, Cash App or PayPal link from a username and an optional amount and note (e.g. `https://venmo.com/USER?txn=pay&amount=10&note=…`). Works today by pasting such a link as a web address; this would only make it easier. Zelle has no public links.
-- **File destinations:** upload a PDF (manual, menu, flyer) to Arweave as the destination. Free under 100 KiB; larger files need paid upload credits.
 
 ## Planned: file links, the first paid feature (notes, not built)
 
@@ -81,16 +83,12 @@ link, limits, low-float alert.
 ## Deliberately not planned
 
 - **Detailed scan analytics** (locations, devices, referrers): tracks people. v3 counts scans per day only, and the count is a side ping, so scans still work if PermaPath disappears.
-- **Automatic web snapshots:** an earlier server-side snapshot experiment struggled with paywalls, animation and bot detection. File destinations cover most of the need.
-- **Payments:** only worth it if large files ever matter. If they do, sponsored uploads are proven (2026-10-07, `spike/FINDINGS.md`): the user's key still signs and owns everything, PermaPath approves Turbo credits for that key, and the user uploads with `x-paid-by`. Charge in dollars (prepaid), keep AR prices out of the UI.
-
+- **Automatic web snapshots:** an earlier server-side snapshot experiment struggled with paywalls, animation and bot detection. File links (planned above) cover most of the need.
 
 ## Known issues
 
 - **Scan counts were reset to zero on 2026-10-07** (the Worker counts into a new Durable Object name), so totals start from real use.
-
 - **Scan counts share the Workers free plan** (100,000 requests a day for the whole account, counting the editor and the CLI relay; Durable Objects have their own free allowance). If PermaPath gets popular, move to Workers Paid ($5/month) before the limit starts failing requests.
-
 - **frostor.xyz returns a broken signature (`"<not-found>"`) for older records.** Handled: the editor, CLI and resolver v2 (`baTff…`) only trust copies whose signatures verify, per copy. Codes made with the old resolver (`G81f…`) can still show "Link not found" in the rare case frostor's broken copy is checked first. Worth reporting to frostor's operator.
 
 ## Watch list (promising, not ready to depend on)

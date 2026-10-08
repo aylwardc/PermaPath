@@ -41,7 +41,7 @@ Ideas discussed since 2026-10-03. Shipped work is listed first; everything after
 
 - **Detailed scan analytics** (locations, devices, referrers): tracks people. v3 counts scans per day only, and the count is a side ping, so scans still work if PermaPath disappears.
 - **Automatic web snapshots:** an earlier server-side snapshot experiment struggled with paywalls, animation and bot detection. File destinations cover most of the need.
-- **Payments:** only worth it if large files ever matter.
+- **Payments:** only worth it if large files ever matter. If they do, sponsored uploads are proven (2026-10-07, `spike/FINDINGS.md`): the user's key still signs and owns everything, PermaPath approves Turbo credits for that key, and the user uploads with `x-paid-by`. Charge in dollars (prepaid), keep AR prices out of the UI.
 
 
 ## Known issues

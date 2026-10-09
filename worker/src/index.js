@@ -251,8 +251,12 @@ export default {
       }
     }
     if (!upstream) {
-      const notFound = failures.every((f) => f.endsWith(' 404'));
-      return new Response(`${notFound ? 'Not found' : 'Arweave gateways failed'}: ${failures.join(', ')}`, { status: notFound ? 404 : 502 });
+      // arweave.net answers Workers with 403, so a page that doesn't exist reads as
+      // 404s plus 403s. That's "not found" (search engines treat 5xx as a broken
+      // site); never cached, so a file that's just been uploaded isn't stuck missing.
+      const notFound = failures.some((f) => f.endsWith(' 404')) && failures.every((f) => / 40[34]$/.test(f));
+      return new Response(`${notFound ? 'Not found' : 'Arweave gateways failed'}: ${failures.join(', ')}`,
+        { status: notFound ? 404 : 502, headers: { 'cache-control': 'no-store' } });
     }
     return new Response(request.method === 'HEAD' ? null : upstream.body, {
       headers: {

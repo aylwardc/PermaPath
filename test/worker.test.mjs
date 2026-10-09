@@ -62,16 +62,22 @@ test('maps upstream errors and rejects other methods', async () => {
   const stub = stubFetch((url) => {
     if (url.endsWith('/missing')) return new Response('', { status: 404 });
     if (url.endsWith('/broken')) return new Response('', { status: 500 });
+    if (url.endsWith('/nope.html')) return new Response('', { status: url.startsWith('https://arweave.net/') ? 403 : 404 });
+    if (url.endsWith('/half')) return new Response('', { status: url.startsWith('https://ardrive.net/') ? 500 : 404 });
     throw new Error('network down');
   });
   try {
     assert.equal((await worker.fetch(req('/missing'))).status, 404);
+    const nope = await worker.fetch(req('/nope.html'));
+    assert.equal(nope.status, 404, 'arweave.net blocks Workers with 403; the rest saying 404 means not found');
+    assert.equal(nope.headers.get('cache-control'), 'no-store');
+    assert.equal((await worker.fetch(req('/half'))).status, 502, 'a gateway error is not "not found"');
     const broken = await worker.fetch(req('/broken'));
     assert.equal(broken.status, 502);
     assert.match(await broken.text(), /arweave\.net 500, turbo-gateway\.com 500, ardrive\.net 500, arweave\.net 500/, 'tries every gateway twice');
     assert.equal((await worker.fetch(req('/down'))).status, 502);
     assert.equal((await worker.fetch(req('/', 'POST'))).status, 405);
-    assert.equal(stub.calls.length, 18);
+    assert.equal(stub.calls.length, 30);
   } finally {
     stub.restore();
   }
